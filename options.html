@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="ja">
+
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>設定 － nico downloader</title>
+</head>
+
+<body>
+    <div>
+        <p>
+            <h1>設定 － nico downloader</h1>
+        </p>
+    </div>
+    <form id="form">
+        <div>
+            <label><b>デフォルト保存名</b></label>
+            <p>－　「名前を付けて保存」画面でデフォルトで命名されるファイル名を設定できます</p>
+            <p></p>
+            <p id="video_downloading_now_setting">現在の設定：</p>
+            <p><select name="video_downloading" id="video_downloading" value="0">
+            <option value="0" selected>[動画番号].mp4</option>
+            <option value="1">[動画タイトル].mp4</option>
+            <option value="2">[動画番号]_[動画タイトル].mp4</option>
+            <option value="3">[動画タイトル]_[動画番号].mp4</option>
+        </select></p>
+        </div>
+        <br><br><br>
+        <div>
+            <label><b>URL判別パターン</b></label>
+            <p>－　特定のパターンでのみ反応するように変更できます。</p>
+            <p>－　Javascriptの正規表現で記載してください。</p>
+            <p id="video_pattern_now_setting">現在の設定：</p>
+            <p>https://www.nicovideo.jp/watch/<input type="text" name="video_pattern" id="video_pattern" value="sm[0-9]{1,}"></p>
+        </div>
+    </form>
+    <br><br><br>
+    <div>
+        <p><button id="default_val">デフォルト設定</button>　<button id="save_button">保存</button></p>
+        <p id="saved"></p>
+    </div>
+
+    <div><a href="https://note.com/masteralice3104/n/n4586ff69c799">nico downloaderの現状、不具合、リリースノートなどはこちらから</a></div>
+
+</body>
+<script src="options.js"></script>
+<script src="options_menu.js"></script>
+
+</html>
