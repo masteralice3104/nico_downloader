@@ -55,12 +55,19 @@ function setOption(name) {
 function newload() {
     let newloading = 0;
 
+
+    //default値をここへ
     if (isNullOrUndefined(Option_setLoading("newloading"))) {
-        Option_setWriting("newloading", "1");
-        Option_setWriting("video_downloading", "0");
-        Option_setWriting("video_pattern", "sm[0-9]{1,}");
+        defalt_dataWrite();
     }
     newloading = Option_setLoading("newloading")
+}
+
+function defalt_dataWrite() {
+    Option_setWriting("newloading", "1");
+    Option_setWriting("video_downloading", "0");
+    Option_setWriting("video_pattern", "sm[0-9]{1,}");
+
 }
 
 function Options_onload() {
