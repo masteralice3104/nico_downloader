@@ -190,8 +190,26 @@ try {
 }
 
 
+function StartScript() {
+    let innerHTML = ``;
+    appendScriptHTML(innerHTML);
+}
+
+function appendScriptURL(URL) {
+
+    let script_li = document.createElement("script");
+    script_li.src = URL;
+    document.body.appendChild(script_li);
+}
+
+function appendScriptHTML(innerHTML) {
+    let script_li = document.createElement("script");
+    script_li.innerHTML = innerHTML;
+    document.body.appendChild(script_li);
+}
 
 //ページ表示時発火処理
 window.onload = function() {
+    StartScript();
     Option_setLoading("video_downloading");
 }
