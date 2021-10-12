@@ -73,15 +73,21 @@ function VideoDown() {
 
     //ダウンロードリンクの表示
     if (video_link_smid === "-1") {
-        console.log("ダウンロードリンク作成…")
-            //まずリンクの作成
+        //まずリンクの作成
         let p_link = document.createElement("p");
+        p_link.id = "DLlink";
         let a_link = document.createElement("a");
         a_link.innerText = "処理中";
-        document.querySelector("#js-app > div > div.WatchAppContainer-main > div.HeaderContainer > div.HeaderContainer-topArea > div.HeaderContainer-topAreaLeft").appendChild(p_link);
-        document.querySelector("#js-app > div > div.WatchAppContainer-main > div.HeaderContainer > div.HeaderContainer-topArea > div.HeaderContainer-topAreaLeft > p").appendChild(a_link);
 
+        if (!document.getElementById(p_link.id)) {
+            document.querySelector("#js-app > div > div.WatchAppContainer-main > div.HeaderContainer > div.HeaderContainer-topArea > div.HeaderContainer-topAreaLeft").appendChild(p_link);
+            document.querySelector("#js-app > div > div.WatchAppContainer-main > div.HeaderContainer > div.HeaderContainer-topArea > div.HeaderContainer-topAreaLeft > p").appendChild(a_link);
+        }
+
+
+        console.log("ダウンロードリンク作成…")
         if (document.querySelector("#MainVideoPlayer > video").getAttribute('src') != null) {
+
             if (document.querySelector("#MainVideoPlayer > video").getAttribute('src').match(/ht2/) != null) {
                 //httpの場合
 
