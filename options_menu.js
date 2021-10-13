@@ -5,6 +5,7 @@ let save_flag = true;
 window.onload = function() {
     newload();
     Options_onload();
+    SoftVersionWrite();
 
     //10ミリ秒ごとの処理
     const intervalId = setInterval(() => {
@@ -65,6 +66,15 @@ function Default_click() {
     document.getElementById("form").value = document.getElementById("form").reset();
 }
 
+function SoftVersion() {
+    let manifest = chrome.runtime.getManifest();
+    return manifest['version'];
+}
+
+function SoftVersionWrite() {
+    let ver = SoftVersion();
+    document.getElementById("version").innerText = `バージョン：` + ver;
+}
 
 //保存ボタンクリック時
 document.getElementById("save_button").onclick = Options_Save;
