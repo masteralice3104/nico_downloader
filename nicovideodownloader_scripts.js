@@ -62,9 +62,9 @@ function VideoDown() {
     video_name = video_name + ".mp4";
 
     if (video_link_smid !== video_sm && video_link_smid !== "-1") {
-        console.log("video_link_smidリセット")
-        console.log("video_link_smid : " + video_link_smid)
-        console.log("video_sm : " + video_sm)
+        DebugPrint("video_link_smidリセット")
+        DebugPrint("video_link_smid : " + video_link_smid)
+        DebugPrint("video_sm : " + video_sm)
             //video_link_smidが現在のものと同じじゃないならすでに読み込んだ形跡があるので一回消す
         video_link_smid = "-1";
         document.querySelector("#js-app > div > div.WatchAppContainer-main > div.HeaderContainer > div.HeaderContainer-topArea > div.HeaderContainer-topAreaLeft > p").remove();
@@ -76,6 +76,8 @@ function VideoDown() {
 
     //ダウンロードリンクの表示
     if (video_link_smid === "-1") {
+
+        DebugPrint("DL link make");
         //まずリンクの作成
         let p_link = document.createElement("p");
         p_link.id = "DLlink";
@@ -88,7 +90,7 @@ function VideoDown() {
         }
 
 
-        console.log("ダウンロードリンク作成…")
+        DebugPrint("DL start");
         if (document.querySelector("#MainVideoPlayer > video").getAttribute('src') != null) {
 
             if (document.querySelector("#MainVideoPlayer > video").getAttribute('src').match(/ht2/) != null) {
@@ -98,9 +100,10 @@ function VideoDown() {
 
                 //読み込み形跡を残す
                 video_link_smid = video_sm;
-
+                DebugPrint("smid上書き");
                 //コンテンツの取得
                 try {
+                    DebugPrint("DL start");
                     fetch(video_URL, { method: 'GET' })
                         .then(response => {
 
@@ -121,6 +124,7 @@ function VideoDown() {
                                     .then(function processResult(result) {
                                         // done が true なら最後の chunk
                                         if (result.done) {
+                                            DebugPrint("DL end");
                                             document.querySelector("#js-app > div > div.WatchAppContainer-main > div.HeaderContainer > div.HeaderContainer-topArea > div.HeaderContainer-topAreaLeft > p > a").download = video_name;
                                             document.querySelector("#js-app > div > div.WatchAppContainer-main > div.HeaderContainer > div.HeaderContainer-topArea > div.HeaderContainer-topAreaLeft > p > a").innerHTML = video_name + " をダウンロード";
 
@@ -147,7 +151,7 @@ function VideoDown() {
                                         return reader.read().then(processResult);
                                     });
                             } catch (error) {
-
+                                console.log(error)
                             }
 
                             //重要
@@ -155,9 +159,12 @@ function VideoDown() {
                             return response.blob();
                         })
                         .then(blob => {
+                            DebugPrint("blob url a-href set");
                             document.querySelector("#js-app > div > div.WatchAppContainer-main > div.HeaderContainer > div.HeaderContainer-topArea > div.HeaderContainer-topAreaLeft > p > a").href = window.URL.createObjectURL(blob);
 
                             //名前を指定
+
+                            DebugPrint("link end");
                         });
 
 
@@ -166,6 +173,7 @@ function VideoDown() {
                 }
 
             } else {
+                DebugPrint("hls error");
                 //hlsになっている場合
                 const add_error = "<p>ダウンロードするためには視聴方法をhttpに切替えてリロードしてください</p><p>■　切り替え方</p><p>①　動画の画面上で右クリックします</p><p>②　視聴方法の切替（hls > http）を選択します</p><p>③　すぐ下にある「リロード」ボタンをクリックします</p><p><button id=\"reload_button\" value=\"リロード\" onclick=\"location.reload();\" > リロード </button></p>";
                 document.querySelector("#js-app > div > div.WatchAppContainer-main > div.HeaderContainer > div.HeaderContainer-topArea > div.HeaderContainer-topAreaLeft > p > a").innerHTML = add_error;
@@ -210,6 +218,12 @@ function appendScriptHTML(innerHTML) {
     let script_li = document.createElement("script");
     script_li.innerHTML = innerHTML;
     document.body.appendChild(script_li);
+}
+
+function DebugPrint(text) {
+    if (setOption("debug") === "1") {
+        console.log("debug:" + text);
+    }
 }
 
 //ページ表示時発火処理

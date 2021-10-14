@@ -49,8 +49,9 @@ function Options_Save() {
     //オプション設定保存時
 
     //オプションの値を書き込み
-    Option_setWriting("video_downloading", document.getElementById("video_downloading").value);
-    Option_setWriting("video_pattern", document.getElementById("video_pattern").value);
+    Option_setWritingByID("video_downloading");
+    Option_setWritingByID("video_pattern");
+    Option_setWritingByID("debug");
 
     //保存日時
     let now = new Date();
@@ -59,6 +60,10 @@ function Options_Save() {
     //非保存フラグ
     save_flag = true;
 
+}
+
+function Option_setWritingByID(ID) {
+    Option_setWriting(ID, document.getElementById(ID).value);
 }
 
 function Default_click() {
