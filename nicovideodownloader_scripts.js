@@ -63,12 +63,15 @@ function VideoDown() {
 
     if (video_link_smid !== video_sm && video_link_smid !== "-1") {
         console.log("video_link_smidリセット")
-        console.log(video_link_smid)
-        console.log(video_sm)
+        console.log("video_link_smid : " + video_link_smid)
+        console.log("video_sm : " + video_sm)
             //video_link_smidが現在のものと同じじゃないならすでに読み込んだ形跡があるので一回消す
         video_link_smid = "-1";
         document.querySelector("#js-app > div > div.WatchAppContainer-main > div.HeaderContainer > div.HeaderContainer-topArea > div.HeaderContainer-topAreaLeft > p").remove();
 
+    }
+    if (video_link_smid === "-1") {
+        console.log("URL取得 : " + document.querySelector("#MainVideoPlayer > video").getAttribute('src'));
     }
 
     //ダウンロードリンクの表示
@@ -158,7 +161,9 @@ function VideoDown() {
                         });
 
 
-                } catch (error) {}
+                } catch (error) {
+                    console.log(error);
+                }
 
             } else {
                 //hlsになっている場合
@@ -177,16 +182,15 @@ function VideoDown() {
 try {
 
     const intervalId = setInterval(() => {
-        console.log(document.querySelector("#MainVideoPlayer > video").getAttribute('src'));
         try {
             VideoDown();
         } catch (e) {
-            console.log(e)
+            console.log(e);
         }
 
     }, 2000);
 } catch (error) {
-
+    console.log(e);
 }
 
 
