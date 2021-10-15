@@ -99,3 +99,10 @@ function LoadOption(name) {
 function isNullOrUndefined(o) {
     return (o === undefined || o === null);
 }
+
+
+function DebugPrint(text) {
+    if (setOption("debug") === "1") {
+        console.log("debug:" + text);
+    }
+}
