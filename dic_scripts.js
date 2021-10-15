@@ -32,7 +32,7 @@ function Start_Dic() {
         let button_threadprev = document.createElement('button');
         button_threadprev.id = `prev_30`;
         button_threadprev.innerHTML = `前の30件を読込`;
-        if (end_res % 30 == 0) {
+        if (start_res != 0) {
             document.getElementsByClassName("st-bbs_reshead")[0].before(button_threadprev);
             document.getElementById("prev_30").onclick = prev_30load;
         }
@@ -150,6 +150,10 @@ function next_30load() {
 
     }
 }
+
+
+
+
 
 //https://qiita.com/seijikohara/items/911f886d8eb79862870b
 //ぶちこんだHTMLをelementにして返す
