@@ -39,24 +39,34 @@ function Start_Dic() {
 
         resnumhead_plus();
 
+        pinres();
 
-        let button_threadpin1 = document.createElement('button');
-        button_threadpin1.id = `threadpin_move_button1`;
-        button_threadpin1.innerText = `前回記録したレスに移動`;
 
-        let button_threadpin2 = document.createElement('button');
-        button_threadpin2.id = `threadpin_move_button2`;
-        button_threadpin2.innerText = `前回記録したレスに移動`;
+    }
+    if (thisURL.match("https://dic.nicovideo.jp/a/.")) {
+        pinres();
+    }
 
-        if (setOption(kiji_URL_get())) {
-            document.getElementsByClassName("st-bbs_reshead")[0].before(button_threadpin1);
-            document.getElementById("threadpin_move_button1").onclick = threadpin_move;
-            document.getElementsByClassName("st-bbs_resbody")[document.getElementsByClassName("st-bbs_resbody").length - 1].after(button_threadpin2);
-            document.getElementById("threadpin_move_button2").onclick = threadpin_move;
-            DebugPrint("threadpin_move set")
-        } else {
+}
 
-        }
+function pinres() {
+
+    let button_threadpin1 = document.createElement('button');
+    button_threadpin1.id = `threadpin_move_button1`;
+    button_threadpin1.innerText = `最後に記録したレスに移動`;
+
+    let button_threadpin2 = document.createElement('button');
+    button_threadpin2.id = `threadpin_move_button2`;
+    button_threadpin2.innerText = `最後に記録したレスに移動`;
+
+    if (setOption(kiji_URL_get())) {
+        document.getElementsByClassName("st-bbs_reshead")[0].before(button_threadpin1);
+        document.getElementById("threadpin_move_button1").onclick = threadpin_move;
+        document.getElementsByClassName("st-bbs_resbody")[document.getElementsByClassName("st-bbs_resbody").length - 1].after(button_threadpin2);
+        document.getElementById("threadpin_move_button2").onclick = threadpin_move2;
+        DebugPrint("threadpin_move set")
+    } else {
+
     }
 }
 
@@ -225,13 +235,18 @@ function pin_dome(e) {
     if (e.currentTarget.innerText === "■") {
         //ローカルストレージを0で上書き
         Option_setWriting(kiji_URL, "0");
-        e.currentTarget.innerText = "□";
+        //e.currentTarget.innerText = "□";
     } else {
         //ローカルストレージに書き込み
         Option_setWriting(kiji_URL, res_no);
-        e.currentTarget.innerText = "■";
+        //e.currentTarget.innerText = "■";
     }
+    resnumhead_plus();
 
+}
+
+function threadpin_move2() {
+    threadpin_move()
 }
 
 function threadpin_move() {
@@ -239,22 +254,36 @@ function threadpin_move() {
     DebugPrint("threadpin_move")
     let kiji_URL = kiji_URL_get();
     let id = Number(setOption(kiji_URL));
+    if (id === 0) {
+        let defaultURL = kiji_URL + "/1-";
+        location.href = defaultURL;
+    }
 
     if (start_res <= id && end_res >= id) {
+        location.hash = "";
         location.hash = id.toString();
         return;
     }
 
 
-    if (start_res > id) {
-        document.getElementById("prev_30").click();
-        setTimeout(threadpin_move, 500);
+    let page = Math.floor(id / 30) * 30 + 1;
+    let pageURL = kiji_URL + "/" + page;
+
+    if (start_res > id | start_res === 0) {
+        setTimeout(threadpin_move, 200);
+        location.href = pageURL + "#" + id.toString();
+
+
+
+        // document.getElementById("prev_30").click();
+
 
     }
-    if (end_res < id) {
-        document.getElementById("next_30").click();
+    if (end_res < id | end_res === 0) {
+        //  document.getElementById("next_30").click();
+        setTimeout(threadpin_move, 200);
+        location.href = pageURL + "#" + id.toString();
 
-        setTimeout(threadpin_move, 500);
 
     }
 
