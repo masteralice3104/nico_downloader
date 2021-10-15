@@ -37,8 +37,26 @@ function Start_Dic() {
             document.getElementById("prev_30").onclick = prev_30load;
         }
 
+        resnumhead_plus();
 
 
+        let button_threadpin1 = document.createElement('button');
+        button_threadpin1.id = `threadpin_move_button1`;
+        button_threadpin1.innerText = `前回記録したレスに移動`;
+
+        let button_threadpin2 = document.createElement('button');
+        button_threadpin2.id = `threadpin_move_button2`;
+        button_threadpin2.innerText = `前回記録したレスに移動`;
+
+        if (setOption(kiji_URL_get())) {
+            document.getElementsByClassName("st-bbs_reshead")[0].before(button_threadpin1);
+            document.getElementById("threadpin_move_button1").onclick = threadpin_move;
+            document.getElementsByClassName("st-bbs_resbody")[document.getElementsByClassName("st-bbs_resbody").length - 1].after(button_threadpin2);
+            document.getElementById("threadpin_move_button2").onclick = threadpin_move;
+            DebugPrint("threadpin_move set")
+        } else {
+
+        }
     }
 }
 
@@ -97,6 +115,7 @@ function prev_30load() {
                 document.getElementsByClassName("st-bbs_reshead")[0].before(last_element);
             }
             document.getElementById("prev_30").removeAttribute("disabled");
+            resnumhead_plus();
         });
 
     }
@@ -137,7 +156,11 @@ function next_30load() {
             //番号更新
             refresh_resNo();
 
-            if (end_res % 30 == 0) {} else {
+
+
+            if (end_res % 30 == 0) {
+                document.getElementById("next_30").removeAttribute("disabled");
+            } else {
                 document.getElementById("next_30").remove();
 
                 let last_element = document.createElement('p');
@@ -145,7 +168,7 @@ function next_30load() {
                 document.getElementsByClassName("st-bbs_resbody")[document.getElementsByClassName("st-bbs_resbody").length - 1].after(last_element);
 
             }
-            document.getElementById("next_30").removeAttribute("disabled");
+            resnumhead_plus();
         });
 
     }
@@ -158,7 +181,6 @@ function next_30load() {
 //https://qiita.com/seijikohara/items/911f886d8eb79862870b
 //ぶちこんだHTMLをelementにして返す
 function createElementFromHTML(html) {
-    DebugPrint("createElementFromHTML");
     const tempEl = document.createElement('div');
     tempEl.innerHTML = html;
     return tempEl.firstElementChild;
@@ -166,8 +188,74 @@ function createElementFromHTML(html) {
 
 //元記事URL取得
 function kiji_URL_get() {
-    DebugPrint("kiji_URL_get")
     let href = document.getElementsByClassName("st-pg_navi")[0].href;
     href = href.replace("https://dic.nicovideo.jp/a/", "https://dic.nicovideo.jp/b/a/")
     return href;
+}
+
+
+function resnumhead_plus() {
+    DebugPrint("resnumhead_plus");
+    for (let i = 0; i < document.getElementsByClassName("resnumhead").length; i++) {
+
+        if (setOption(kiji_URL_get())) {
+            if (setOption(kiji_URL_get()) === document.getElementsByClassName("resnumhead")[i].getAttribute("name")) {
+                document.getElementsByClassName("resnumhead")[i].innerText = "■";
+            } else {
+                document.getElementsByClassName("resnumhead")[i].innerText = "□";
+            }
+        } else {
+            document.getElementsByClassName("resnumhead")[i].innerText = "□";
+        }
+        document.getElementsByClassName("resnumhead")[i].href = "javascript:void(0);"
+        document.getElementsByClassName("resnumhead")[i].onclick = pin_dome;
+        document.getElementsByClassName("resnumhead")[i].id = document.getElementsByClassName("resnumhead")[i].getAttribute("name");
+
+    }
+}
+
+function pin_dome(e) {
+    let res_no = e.currentTarget.getAttribute("name");
+    let kiji_URL = kiji_URL_get();
+    DebugPrint("pin_dome : " + kiji_URL + " : " + res_no);
+
+
+
+    //変更
+    if (e.currentTarget.innerText === "■") {
+        //ローカルストレージを0で上書き
+        Option_setWriting(kiji_URL, "0");
+        e.currentTarget.innerText = "□";
+    } else {
+        //ローカルストレージに書き込み
+        Option_setWriting(kiji_URL, res_no);
+        e.currentTarget.innerText = "■";
+    }
+
+}
+
+function threadpin_move() {
+
+    DebugPrint("threadpin_move")
+    let kiji_URL = kiji_URL_get();
+    let id = Number(setOption(kiji_URL));
+
+    if (start_res <= id && end_res >= id) {
+        location.hash = id.toString();
+        return;
+    }
+
+
+    if (start_res > id) {
+        document.getElementById("prev_30").click();
+        setTimeout(threadpin_move, 500);
+
+    }
+    if (end_res < id) {
+        document.getElementById("next_30").click();
+
+        setTimeout(threadpin_move, 500);
+
+    }
+
 }
