@@ -54,6 +54,9 @@ function refresh_resNo() {
 
 function prev_30load() {
 
+    document.getElementById("prev_30").setAttribute("disabled", true);
+
+
     let kijiURL = kiji_URL_get();
     let DL_URL = kijiURL + "/" + Number(start_res - 30) + "-"
     DebugPrint(DL_URL);
@@ -86,22 +89,22 @@ function prev_30load() {
             //番号更新
             refresh_resNo();
 
-            if (start_res != 1) {
-                return 0;
-            } else {
+            if (start_res != 1) {} else {
                 document.getElementById("prev_30").remove();
 
                 let last_element = document.createElement('p');
                 last_element.innerText = "最初のレスまで読み込みました";
                 document.getElementsByClassName("st-bbs_reshead")[0].before(last_element);
-                return 1;
             }
+            document.getElementById("prev_30").removeAttribute("disabled");
         });
 
     }
 }
 
 function next_30load() {
+
+    document.getElementById("next_30").setAttribute("disabled", true);
 
     let kijiURL = kiji_URL_get();
     let DL_URL = kijiURL + "/" + Number(end_res + 1) + "-"
@@ -134,16 +137,15 @@ function next_30load() {
             //番号更新
             refresh_resNo();
 
-            if (end_res % 30 == 0) {
-                return 0;
-            } else {
+            if (end_res % 30 == 0) {} else {
                 document.getElementById("next_30").remove();
 
                 let last_element = document.createElement('p');
                 last_element.innerText = "最新のレスまで読み込みました";
                 document.getElementsByClassName("st-bbs_resbody")[document.getElementsByClassName("st-bbs_resbody").length - 1].after(last_element);
-                return 1;
+
             }
+            document.getElementById("next_30").removeAttribute("disabled");
         });
 
     }
