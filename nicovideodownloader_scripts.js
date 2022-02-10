@@ -120,6 +120,8 @@ function VideoDown() {
                                 let chunk_read_time = Date.now();
                                 let chunk_read_before = 0;
                                 let downspeed = 0;
+                                let read_result = 0;
+                                
                                 reader.read()
                                     .then(function processResult(result) {
                                         // done が true なら最後の chunk
@@ -128,6 +130,7 @@ function VideoDown() {
                                             document.querySelector("#js-app > div > div.WatchAppContainer-main > div.HeaderContainer > div.HeaderContainer-topArea > div.HeaderContainer-topAreaLeft > p > a").download = video_name;
                                             document.querySelector("#js-app > div > div.WatchAppContainer-main > div.HeaderContainer > div.HeaderContainer-topArea > div.HeaderContainer-topAreaLeft > p > a").innerHTML = video_name + " をダウンロード";
 
+                                            read_result=1;
                                             return;
                                         }
 
@@ -135,13 +138,13 @@ function VideoDown() {
 
                                         chunk += result.value.length;
                                         /* 
-                                                                                let downfilesize = `${(chunk/1024/1024).toFixed(1)} MB`
-                                                                                if (Date.now() - chunk_read_time > 1000) {
-                                                                                    downspeed = ((chunk - chunk_read_before) / 1024 / 1024) / ((Date.now() - chunk_read_time) / 1000) * 8;
-                                                                                    downspeed = downspeed.toFixed(1);
-                                                                                    chunk_read_before = chunk;
-                                                                                    chunk_read_time = Date.now();
-                                                                                }
+                                                        let downfilesize = `${(chunk/1024/1024).toFixed(1)} MB`
+                                                        if (Date.now() - chunk_read_time > 1000) {
+                                                            downspeed = ((chunk - chunk_read_before) / 1024 / 1024) / ((Date.now() - chunk_read_time) / 1000) * 8;
+                                                            downspeed = downspeed.toFixed(1);
+                                                            chunk_read_before = chunk;
+                                                            chunk_read_time = Date.now();
+                                                        }
                                         */
 
                                         let downtext = `処理中：${Math.round(chunk/total * 100)} %`
@@ -155,8 +158,13 @@ function VideoDown() {
                             }
 
                             //重要
-                            //return response.blob()
+                            if (read_result){
+                                DebugPrint("read resultできました")
+                            }else{
+                                DebugPrint("read resultできませんでした")
+                            }
                             return response.blob();
+                            
                         })
                         .then(blob => {
                             DebugPrint("blob url a-href set");
