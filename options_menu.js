@@ -12,6 +12,8 @@ window.onload = function() {
         if (save_flag == true) {
             Options_view_select("video_downloading");
             Options_view_input("video_pattern");
+            Options_view_select("video_autosave");
+            Options_view_select("debug");
         }
         save_flag = false;
     }, 10);
@@ -52,6 +54,7 @@ function Options_Save() {
     Option_setWritingByID("video_downloading");
     Option_setWritingByID("video_pattern");
     Option_setWritingByID("debug");
+    Option_setWritingByID("video_autosave");
 
     //保存日時
     let now = new Date();

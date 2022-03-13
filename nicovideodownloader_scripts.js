@@ -4,15 +4,9 @@ let video_link_smid = "-1"; //-1はロードしてない
 
 //ダウンロード関数
 function videoDL(vname, vurl) {
+    DebugPrint("videoDL() start")
     //落とす
-    fetch(vurl, { method: 'GET' }).then(response => response.blob()).then(blob => {
-        let a_link = document.createElement("a");
-        a_link.href = window.URL.createObjectURL(blob);
-        //名前を指定
-        a_link.download = vname;
-        a_link.click();
-    });
-    return true;
+    chrome.runtime.sendMessage({ request_type: "nicodownloader_down" , name: vname, url: vurl })
 };
 
 function VideoDown() {
@@ -107,6 +101,9 @@ function VideoDown() {
                 //コンテンツの取得
                 try {
                     DebugPrint("DL start");
+
+
+                    
                     fetch(video_URL, { method: 'GET' })
                         .then(response => {
 
@@ -121,9 +118,6 @@ function VideoDown() {
                             let chunk = 0;
                             let read_result = 0;
                             try {
-                                let chunk_read_time = Date.now();
-                                let chunk_read_before = 0;
-                                let downspeed = 0;
                                 
                                 reader.read()
                                     .then(function processResult(result) {
@@ -140,17 +134,11 @@ function VideoDown() {
                                         // chunk の長さの蓄積を total で割れば進捗が分かる
 
                                         chunk += result.value.length;
-                                        /* 
-                                                        let downfilesize = `${(chunk/1024/1024).toFixed(1)} MB`
-                                                        if (Date.now() - chunk_read_time > 1000) {
-                                                            downspeed = ((chunk - chunk_read_before) / 1024 / 1024) / ((Date.now() - chunk_read_time) / 1000) * 8;
-                                                            downspeed = downspeed.toFixed(1);
-                                                            chunk_read_before = chunk;
-                                                            chunk_read_time = Date.now();
-                                                        }
-                                        */
 
                                         let downtext = `処理中：${Math.round(chunk/total * 100)} %`
+                                        if(setOption("video_autosave") == "1"){
+                                            downtext += "[自動保存モード]"
+                                        }
                                         document.querySelector("#js-app > div > div.WatchAppContainer-main > div.HeaderContainer > div.HeaderContainer-topArea > div.HeaderContainer-topAreaLeft > p > a").innerHTML = downtext;
 
                                         // 再帰する
@@ -175,7 +163,13 @@ function VideoDown() {
 
                             //名前を指定
 
+                            if(setOption("video_autosave") == "1"){
+                                //videoDL(video_name,window.URL.createObjectURL(blob));
+                                DebugPrint("video_autosave run");
+                                document.querySelector("#js-app > div > div.WatchAppContainer-main > div.HeaderContainer > div.HeaderContainer-topArea > div.HeaderContainer-topAreaLeft > p > a").click();
+                            }
                             DebugPrint("link end");
+
                         });
 
 

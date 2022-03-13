@@ -39,8 +39,22 @@
         </div>
         <br><br><br>
         <div>
+            <label><b>自動保存設定</b></label>
+            <p>－　動画が読み込み終了した時点で、自動で保存処理が走るようになります。</p>
+            <p>－　鬱陶しい時はOFFにしましょう</p>
+            <p id="video_autosave_now_setting">現在の設定：</p>
+            <p>
+                <select name="video_autosave" id="video_autosave" value="0">
+                                <option value="0" selected>OFF</option>
+                                <option value="1">ON</option>
+                </select>
+            </p>
+        </div>
+        <br><br><br>
+        <div>
             <label><b>デバッグモード</b></label>
             <p>－　デバッグモードです。</p>
+            <p id="debug_now_setting">現在の設定：</p>
             <p>
                 <select name="debug" id="debug" value="0">
                                 <option value="0" selected>OFF</option>
