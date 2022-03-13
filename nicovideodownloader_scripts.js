@@ -116,11 +116,11 @@ function VideoDown() {
                             // body の reader を取得する
                             let reader = responseCache.body.getReader();
                             let chunk = 0;
+                            let read_result = 0;
                             try {
                                 let chunk_read_time = Date.now();
                                 let chunk_read_before = 0;
                                 let downspeed = 0;
-                                let read_result = 0;
                                 
                                 reader.read()
                                     .then(function processResult(result) {
