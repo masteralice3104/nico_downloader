@@ -28,6 +28,9 @@ function VideoDown() {
     let match_sm = ""
     try {
         match_sm = setOption("video_pattern") | "sm[0-9]{1,}";
+        if(match_sm == "0"){
+            match_sm = "sm[0-9]{1,}";    
+        }
     } catch (error) {
         match_sm = "sm[0-9]{1,}";
     }
