@@ -136,7 +136,6 @@ function VideoDown() {
                                         }
 
                                         // chunk の長さの蓄積を total で割れば進捗が分かる
-
                                         chunk += result.value.length;
 
                                         let downtext = `処理中：${Math.round(chunk/total * 100)} %`
