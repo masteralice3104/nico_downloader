@@ -127,6 +127,10 @@ function VideoDown() {
                                             document.querySelector("#js-app > div > div.WatchAppContainer-main > div.HeaderContainer > div.HeaderContainer-topArea > div.HeaderContainer-topAreaLeft > p > a").download = video_name;
                                             document.querySelector("#js-app > div > div.WatchAppContainer-main > div.HeaderContainer > div.HeaderContainer-topArea > div.HeaderContainer-topAreaLeft > p > a").innerHTML = video_name + " をダウンロード";
 
+                                            if(setOption("video_autosave") == "1"){
+                                                document.querySelector("#js-app > div > div.WatchAppContainer-main > div.HeaderContainer > div.HeaderContainer-topArea > div.HeaderContainer-topAreaLeft > p > a").innerHTML += "[自動保存モード]"
+                                            }
+
                                             read_result=1;
                                             return;
                                         }
@@ -159,6 +163,7 @@ function VideoDown() {
                         })
                         .then(blob => {
                             DebugPrint("blob url a-href set");
+
                             document.querySelector("#js-app > div > div.WatchAppContainer-main > div.HeaderContainer > div.HeaderContainer-topArea > div.HeaderContainer-topAreaLeft > p > a").href = window.URL.createObjectURL(blob);
 
                             //名前を指定
