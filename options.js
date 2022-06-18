@@ -42,7 +42,7 @@ function Option_setLoading(name) {
 //オプション値読み込み用関数
 function setOption(name) {
     try {
-        if (typeof Option_setLoading(name) === "undefined") {
+        if (Option_setLoading(name) === "undefined") {
             return 0;
         } else {
 
@@ -50,6 +50,7 @@ function setOption(name) {
         }
 
     } catch (error) {
+        DebugPrint("ndl:"+error)
         return 0;
     }
 }

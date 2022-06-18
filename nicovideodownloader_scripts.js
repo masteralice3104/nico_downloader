@@ -19,18 +19,27 @@ function VideoDown() {
 
     //動画sm番号の定義
     let video_sm = ""
-    let match_sm = ""
+    let match_sm = "0"
     try {
-        match_sm = setOption("video_pattern") | "sm[0-9]{1,}";
+        DebugPrint("match_sm初期値 : " +match_sm) 
+        match_sm = setOption("video_pattern");
+        DebugPrint("match_sm読込 : " +match_sm) 
         if(match_sm == "0"){
             match_sm = "sm[0-9]{1,}";    
         }
+        DebugPrint("match_smｴﾗｰ処理 : " +match_sm) 
     } catch (error) {
         match_sm = "sm[0-9]{1,}";
+        DebugPrint("ndl:er "+error)
     }
     if (location.href.match(match_sm)) {
         video_sm = location.href.match(match_sm).toString();
+        DebugPrint("location.href.match match_sm true")
+        DebugPrint("match_sm : " +match_sm)
     } else {
+        DebugPrint("location.href.match match_sm false")
+        DebugPrint("match_sm : " +match_sm)
+        DebugPrint("setOption(\"video_pattern\") : "+setOption("video_pattern"))
         return;
     }
 
