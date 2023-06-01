@@ -6,6 +6,7 @@ LocalStorageで保存される値について
 "video_downloading"     0                   デフォルト保存名設定
 "video_pattern"         sm[0-9]{1,}         反応するURL設定名
 "video_autosave"        0                   1だと自動で保存処理が走ります
+"video_hlssave"         0                   0だとレジストリ登録支援モード、1だと通常モード
 "debug"                 0                   1だとデバッグ出力あり
  */
 
@@ -72,6 +73,7 @@ function defalt_dataWrite() {
     Option_setWriting("video_pattern", "sm[0-9]{1,}");
     Option_setWriting("video_autosave","0");
     Option_setWriting("debug", "0");
+    Option_setWriting("video_hlssave","0")
     Options_Save();
 }
 
@@ -82,7 +84,8 @@ function Options_onload() {
     try {
         LoadOption("video_downloading");
         LoadOption("video_pattern");
-        LoadOption("video_autosave")
+        LoadOption("video_autosave");
+        LoadOption("video_hlssave");
         LoadOption("debug");
     } catch (error) {
         Default_click();

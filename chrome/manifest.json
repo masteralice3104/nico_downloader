@@ -2,7 +2,7 @@
     "manifest_version": 3,
     "name": "nico downloader",
     "description": "ニコニコからの動画保存をサポートする他、ニコニコを便利に使うための非公式の拡張機能です。",
-    "version": "1.2.0.1",
+    "version": "2.0.0.0",
     "icons": {
         "16": "icon_16.png",
         "48": "icon_48.png",
@@ -11,6 +11,12 @@
     "permissions": [
         "storage"
     ],
+    "web_accessible_resources": [{
+        "matches" : [ "https://www.nicovideo.jp/*" ],
+        "resources" : [ "win/save_setting.reg",
+                        "options.html" 
+    ]
+    } ],
     "content_scripts": [{
         "matches": ["https://www.nicovideo.jp/*"],
         "js": ["nicovideodownloader_scripts.js",
