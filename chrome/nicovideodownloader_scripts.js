@@ -221,7 +221,6 @@ function VideoDown() {
                         rawMessage = String(message)
                         tempURL = String(rawMessage.replace('動画の読み込みを開始しました。（','').replace('）',''));
                         DebugPrint("masterURL:"+tempURL);
-                        break;
                     }
 
                     
@@ -321,7 +320,8 @@ function VideoDown() {
                             if(setOption("video_autosave") == "1"){
                                 //videoDL(video_name,window.URL.createObjectURL(blob));
                                 DebugPrint("video_autosave run");
-                                document.querySelector("#js-app > div > div.WatchAppContainer-main > div.HeaderContainer > div.HeaderContainer-topArea > div.HeaderContainer-topAreaLeft > p > a").click();
+                                setTimeout(function(){document.querySelector("#DLlink > a").click();}, 1000); 
+                                
                             }
                         }
                     
