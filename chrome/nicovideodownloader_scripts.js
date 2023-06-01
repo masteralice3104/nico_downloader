@@ -142,6 +142,9 @@ function VideoDown() {
                                         if(setOption("video_autosave") == "1"){
                                             downtext += "[自動保存モード]"
                                         }
+                                        //注意書き追加
+                                        downtext += "今後HTTP方式は廃止されます。HLSモードでも保存ができるようオプションより設定を行ってください。"
+
                                         document.querySelector("#js-app > div > div.WatchAppContainer-main > div.HeaderContainer > div.HeaderContainer-topArea > div.HeaderContainer-topAreaLeft > p > a").innerHTML = downtext;
 
                                         // 再帰する
@@ -313,6 +316,13 @@ function VideoDown() {
                             //読み込み形跡を残す
                             video_link_smid = video_sm;
                             DebugPrint("smid上書き");
+
+                            
+                            if(setOption("video_autosave") == "1"){
+                                //videoDL(video_name,window.URL.createObjectURL(blob));
+                                DebugPrint("video_autosave run");
+                                document.querySelector("#js-app > div > div.WatchAppContainer-main > div.HeaderContainer > div.HeaderContainer-topArea > div.HeaderContainer-topAreaLeft > p > a").click();
+                            }
                         }
                     
 
