@@ -128,7 +128,7 @@ function VideoDown() {
                                             document.querySelector("#js-app > div > div.WatchAppContainer-main > div.HeaderContainer > div.HeaderContainer-topArea > div.HeaderContainer-topAreaLeft > p > a").innerHTML = video_name + " をダウンロード";
                                             
                                             //注意書き追加
-                                            document.querySelector("#js-app > div > div.WatchAppContainer-main > div.HeaderContainer > div.HeaderContainer-topArea > div.HeaderContainer-topAreaLeft > p > a").innerHTML +="<br>今後HTTP方式は廃止されます。HLSモードでも保存ができるようオプションより設定を行ってください。"
+                                            document.querySelector("#js-app > div > div.WatchAppContainer-main > div.HeaderContainer > div.HeaderContainer-topArea > div.HeaderContainer-topAreaLeft > p > a").innerHTML +="<br>今後HTTP方式は廃止されます。HLSモードでも保存ができるよう拡張機能のオプションより設定を行ってください。"
                                             if(setOption("video_autosave") == "1"){
                                                 document.querySelector("#js-app > div > div.WatchAppContainer-main > div.HeaderContainer > div.HeaderContainer-topArea > div.HeaderContainer-topAreaLeft > p > a").innerHTML += "[自動保存モード]"
                                             }
@@ -140,7 +140,7 @@ function VideoDown() {
                                         // chunk の長さの蓄積を total で割れば進捗が分かる
                                         chunk += result.value.length;
 
-                                        let downtext = `処理中：${Math.round(chunk/total * 100)} %`
+                                        let downtext = `処理中：${Math.round(chunk/total * 100)} %` + '今後HTTP方式は廃止されます。HLSモードでも保存ができるよう拡張機能のオプションより設定を行ってください。';
                                         if(setOption("video_autosave") == "1"){
                                             downtext += "[自動保存モード]"
                                         }
