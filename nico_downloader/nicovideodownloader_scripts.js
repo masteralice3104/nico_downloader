@@ -140,7 +140,7 @@ function VideoDown() {
                                         // chunk の長さの蓄積を total で割れば進捗が分かる
                                         chunk += result.value.length;
 
-                                        let downtext = `処理中：${Math.round(chunk/total * 100)} %` + '今後HTTP方式は廃止されます。HLSモードでも保存ができるよう拡張機能のオプションより設定を行ってください。';
+                                        let downtext = `処理中：${Math.round(chunk/total * 100)} %` + '<br>今後HTTP方式は廃止されます。HLSモードでも保存ができるよう拡張機能のオプションより設定を行ってください。';
                                         if(setOption("video_autosave") == "1"){
                                             downtext += "[自動保存モード]"
                                         }
@@ -191,7 +191,7 @@ function VideoDown() {
                 
                 let add_error = "<p>ダウンロードするためにはシステムメッセージを開いてください</p>";
                 if(hlssavemode=="0"){
-                    add_error = "<p>◆◆◆◆nico downloaderの初期設定を行ってください◆◆◆◆</p><p><a href=\"chrome-extension://lljfnmdhmlcbccmnoefchidjmdbpojlm/options.html\">設定画面を開く</a></p>";
+                    add_error = "<p>◆◆◆◆nico downloaderの初期設定を行ってください◆◆◆◆</p><p><a href=\"chrome-extension://dncjcadpoakefjpnabimpalenliehbig/options.html\">設定画面を開く</a></p>";
                 }else if(hlssavemode=="1"){
                     add_error += "<p>動画画面上を右クリック→システムメッセージを開く で開けます</p>"
                 }
