@@ -191,7 +191,8 @@ function VideoDown() {
                 
                 let add_error = "<p>ダウンロードするためにはシステムメッセージを開いてください</p>";
                 if(hlssavemode=="0"){
-                    add_error = "<p>◆◆◆◆nico downloaderの初期設定を行ってください◆◆◆◆</p><p><a href=\"chrome-extension://dncjcadpoakefjpnabimpalenliehbig/options.html\">設定画面を開く</a></p>";
+                    const optionURL = chrome.runtime.getURL('options.html');
+                    add_error = "<p>◆◆◆◆nico downloaderの初期設定を行ってください◆◆◆◆</p><p><a href=\""+optionURL+"\">設定画面を開く</a></p>";
                 }else if(hlssavemode=="1"){
                     add_error += "<p>動画画面上を右クリック→システムメッセージを開く で開けます</p>"
                 }
