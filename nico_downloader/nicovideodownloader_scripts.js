@@ -268,7 +268,7 @@ function VideoDown() {
                             //const URItext = "-protocol_whitelist file,http,https,tcp,tls,crypto -i "+ playlistURL +" -c copy "+ video_name;
                             let URItext = video_name+"をダウンロード(ffmpegを開きます)";
                             if(hlssavemode=="1"){
-                                URItext =URItext+ "\nここをクリック後「Windowsコマンドプロセッサを開く」を押してダウンロードできます";
+                                URItext =URItext+ "\nここをクリック後「dl.batを開く」を押してダウンロードできます";
                             }
 
                             const URItext2 = playlistURL +"(((-c(((copy"+"((("+ video_name;

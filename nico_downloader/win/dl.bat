@@ -5,5 +5,5 @@ FOR /F "TOKENS=1,2,*" %%I IN ('REG QUERY "HKEY_CLASSES_ROOT\nicodown" /v "ffmpeg
 set myvar=%myvar:(((= %
 set myvar=%myvar:"=%"
 cd /d %SAVEDIR% 
-call %FFMPEGPATH% -protocol_whitelist file,http,https,tcp,tls,crypto -i %myvar%
+call %FFMPEGPATH% -readrate 4 -protocol_whitelist file,http,https,tcp,tls,crypto -i %myvar%
 pause
