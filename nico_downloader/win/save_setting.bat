@@ -11,5 +11,5 @@ reg add "HKEY_CLASSES_ROOT\nicodown" /v "ffmpeg" /t REG_SZ /d "ffmpeg" /f
 reg add "HKEY_CLASSES_ROOT\nicodown" /v "Folder" /t REG_SZ /d "C:\nicodown" /f 
 reg add "HKEY_CLASSES_ROOT\nicodown\shell\open\command" /ve /t REG_SZ /d "C:\nicodown\dl.bat \"%%1\"" /f
 
-echo レジストリ実行終了
+echo レジストリ書込処理→終了
 pause
