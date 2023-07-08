@@ -2,6 +2,8 @@
 let video_link_smid = "-1"; //-1はロードしてない
 
 
+    
+
 //ダウンロード関数
 
 function VideoDown() {
@@ -250,53 +252,16 @@ function VideoDown() {
                         playlistURL = String(masterURL.match(/(https.).*(master.m3u8?.)/g)).replace('master.m3u8?','') + masterURLGyou[2];
                         DebugPrint("playlistURL: " + playlistURL);
                         
-                        const xhr_playlist = new XMLHttpRequest();
-                        xhr_playlist.open('GET',playlistURL);
-                        xhr_playlist.send();
-                        xhr_playlist.onreadystatechange =function(){
-                            //取得完了したらここに飛ぶ
-                            let playlistRawMessage = this.responseText;
+
+
+
+
+                       
+
                             
+ 
 
-
-                            //https://stabucky.com/wp/archives/10419
-                            playlistRawMessage=playlistRawMessage.trim();
-                            playlistRawMessage=playlistRawMessage.replace(/(\r?\n)+/g,"\n");
-
-                            const playlistMessage = playlistRawMessage.split(/\r\n|\n/);
-                            DebugPrint(playlistMessage);
-
-
-                            // playlistのアイテムを全部読み込む
-                            /*
-                            //読み込んだTSファイルの置き場所配列
-                            let TSURLs = [];
-                                
                             
-                            playlistMessage.forEach(function(element){
-                                if(element.match(/#/)){
-                                    //#が入ってる行は飛ばす
-                                }else{
-                                    //TSURLの取得
-                                        const TSURL = String(playlistURL.match(/(https.).*(playlist.m3u8?.)/g)).replace('playlist.m3u8?','')+element;
-                                        TSURLs.push(TSURL);
-                                }
-                            })
-                            
-                            DebugPrint("TSURLs.length:"+TSURLs.length);
-                            
-
-                            let command = "";
-
-                            for (let i=0; i<TSURLs.length; i++) {
-                                if(i==0){
-                                    command = command +" -i "+ TSURLs[i];
-                                }else{
-                                    command = command +" -i "+ TSURLs[i];
-                                }
-                            }
-                            
-                            */
                             const apptext = video_name + " をダウンロード(にこだうんろーだーを起動)";
                             //const URItext = "nicodown:"+command;
                             //const URItext = "ffmpeg -protocol_whitelist file,http,https,tcp,tls,crypto "+command+" -filter_complex \"concat=n="+ TSURLs.length +":v=1:a=1\"  output.mp4"
@@ -324,7 +289,7 @@ function VideoDown() {
                                 setTimeout(function(){document.querySelector("#DLlink > a").click();}, 1000); 
                                 
                             }
-                        }
+                        
                     
 
                 }
@@ -353,11 +318,11 @@ try {
 } catch (error) {
     console.log(e);
 }
-
-
 function StartScript() {
     let innerHTML = ``;
     appendScriptHTML(innerHTML);
+
+        
 }
 
 function appendScriptURL(URL) {
@@ -374,10 +339,17 @@ function appendScriptHTML(innerHTML) {
 }
 
 
+//ffmpeg.wasm読み込む
+let script = document.createElement('script');
+script.src = chrome.runtime.getURL("dist/ffmpeg.min.js");
+document.body.appendChild(script);
+
 //ページ表示時発火処理
 window.onload = function() {
     StartScript();
     Option_setLoading("video_downloading");
+
+
 }
 
 

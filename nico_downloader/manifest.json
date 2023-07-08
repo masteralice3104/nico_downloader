@@ -14,7 +14,13 @@
     "web_accessible_resources": [{
         "matches" : [ "https://www.nicovideo.jp/*" ],
         "resources" : [ "win/save_setting.reg",
-                        "options.html" 
+                        "options.html",
+                        "dist/046d0074eee1d99a674a.js",
+                        "dist/ffmpeg-core.js",
+                        "dist/ffmpeg-core.wasm",
+                        "dist/ffmpeg-core.worker.js",
+                        "dist/ffmpeg.min.js",
+                        "dist/ffmpeg.min.js.map"
     ]
     } ],
     "content_scripts": [{
