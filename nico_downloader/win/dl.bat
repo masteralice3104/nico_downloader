@@ -6,4 +6,3 @@ set myvar=%myvar:(((= %
 set myvar=%myvar:"=%"
 cd /d %SAVEDIR% 
 call %FFMPEGPATH% -readrate 4 -protocol_whitelist file,http,https,tcp,tls,crypto -i %myvar%
-pause
