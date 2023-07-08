@@ -39,7 +39,7 @@ copy ffmpeg\ffmpeg-6.0-essentials_build\bin\ffmpeg.exe bin\ffmpeg.exe
 @REM Œãˆ—
 echo Œãˆ—‚µ‚Ü‚·cc
 rd /s /q ffmpeg
-rd /s /q %CD%\temp.zip
+del /q %CD%\temp.zip
 
 @REM dl.bat‚ğ‚Á‚Ä‚­‚é
 call powershell -command "Start-BitsTransfer -Source https://raw.githubusercontent.com/masteralice3104/nico_downloader/main/nico_downloader/win/dl.bat %CD%\bin\dl.bat"
