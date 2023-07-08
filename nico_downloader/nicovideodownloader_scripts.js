@@ -97,94 +97,6 @@ function VideoDown() {
         if (document.querySelector("#MainVideoPlayer > video").getAttribute('src') != null) {
             //httpの場合
             if (document.querySelector("#MainVideoPlayer > video").getAttribute('src').match(/ht2/) != null) {
-                //読み込み形跡を残す
-                video_link_smid = video_sm;
-                DebugPrint("smid上書き");
-                //コンテンツの取得
-                try {
-                    DebugPrint("http DL start");
-
-
-                    
-                    fetch(video_URL, { method: 'GET' })
-                        .then(response => {
-
-                            let responseCache = response.clone();
-
-                            //参考：https://blog.jxck.io/entries/2016-07-21/fetch-progress-cancel.html
-                            //ダウンロードファイルの全体サイズ取得
-                            let total = responseCache.headers.get('content-length');
-
-                            // body の reader を取得する
-                            let reader = responseCache.body.getReader();
-                            let chunk = 0;
-                            let read_result = 0;
-                            try {
-                                
-                                reader.read()
-                                    .then(function processResult(result) {
-                                        // done が true なら最後の chunk
-                                        if (result.done) {
-                                            DebugPrint("DL end");
-                                            document.querySelector("#js-app > div > div.WatchAppContainer-main > div.HeaderContainer > div.HeaderContainer-topArea > div.HeaderContainer-topAreaLeft > p > a").download = video_name;
-                                            document.querySelector("#js-app > div > div.WatchAppContainer-main > div.HeaderContainer > div.HeaderContainer-topArea > div.HeaderContainer-topAreaLeft > p > a").innerHTML = video_name + " をダウンロード";
-                                            
-                                            //注意書き追加
-                                            document.querySelector("#js-app > div > div.WatchAppContainer-main > div.HeaderContainer > div.HeaderContainer-topArea > div.HeaderContainer-topAreaLeft > p > a").innerHTML +="<br>今後HTTP方式は廃止されます。HLSモードでも保存ができるよう拡張機能のオプションより設定を行ってください。"
-                                            if(setOption("video_autosave") == "1"){
-                                                document.querySelector("#js-app > div > div.WatchAppContainer-main > div.HeaderContainer > div.HeaderContainer-topArea > div.HeaderContainer-topAreaLeft > p > a").innerHTML += "[自動保存モード]"
-                                            }
-
-                                            read_result=1;
-                                            return;
-                                        }
-
-                                        // chunk の長さの蓄積を total で割れば進捗が分かる
-                                        chunk += result.value.length;
-
-                                        let downtext = `処理中：${Math.round(chunk/total * 100)} %` + '<br>今後HTTP方式は廃止されます。HLSモードでも保存ができるよう拡張機能のオプションより設定を行ってください。';
-                                        if(setOption("video_autosave") == "1"){
-                                            downtext += "[自動保存モード]"
-                                        }
-
-                                        document.querySelector("#js-app > div > div.WatchAppContainer-main > div.HeaderContainer > div.HeaderContainer-topArea > div.HeaderContainer-topAreaLeft > p > a").innerHTML = downtext;
-
-                                        // 再帰する
-                                        return reader.read().then(processResult);
-                                    });
-                            } catch (error) {
-                                console.log(error)
-                            }
-
-                            //重要
-                            if (read_result){
-                                DebugPrint("read resultできました")
-                            }else{
-                                DebugPrint("read resultできませんでした")
-                            }
-                            return response.blob();
-                            
-                        })
-                        .then(blob => {
-                            DebugPrint("blob url a-href set");
-
-                            document.querySelector("#js-app > div > div.WatchAppContainer-main > div.HeaderContainer > div.HeaderContainer-topArea > div.HeaderContainer-topAreaLeft > p > a").href = window.URL.createObjectURL(blob);
-
-                            //名前を指定
-
-                            if(setOption("video_autosave") == "1"){
-                                //videoDL(video_name,window.URL.createObjectURL(blob));
-                                DebugPrint("video_autosave run");
-                                document.querySelector("#js-app > div > div.WatchAppContainer-main > div.HeaderContainer > div.HeaderContainer-topArea > div.HeaderContainer-topAreaLeft > p > a").click();
-                            }
-                            DebugPrint("link end");
-
-                        });
-
-
-                } catch (error) {
-                    console.log(error);
-                }
 
             } else {
                 //hlsになっている場合
@@ -338,11 +250,6 @@ function appendScriptHTML(innerHTML) {
     document.body.appendChild(script_li);
 }
 
-
-//ffmpeg.wasm読み込む
-let script = document.createElement('script');
-script.src = chrome.runtime.getURL("dist/ffmpeg.min.js");
-document.body.appendChild(script);
 
 //ページ表示時発火処理
 window.onload = function() {
