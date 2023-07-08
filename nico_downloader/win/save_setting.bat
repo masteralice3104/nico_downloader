@@ -1,12 +1,11 @@
 
 @echo off
 
-echo ＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝
-echo 　　　　　
-echo 　nico downloader セットアップ　v2.0.0
-echo 　　　　　
-echo ＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝
-
+echo #######################################################
+echo #
+echo #　nico downloader セットアップ　v2.0.0
+echo #　　　　　
+echo #######################################################
 
 whoami /priv | find "SeDebugPrivilege" > nul
 if %errorlevel% neq 0 (
