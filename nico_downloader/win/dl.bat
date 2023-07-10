@@ -26,6 +26,5 @@ set myvar=%myvar:m3u8ht=m3u8?ht%
 cd /d %SAVEDIR% 
 call %FFMPEGPATH% -readrate 4 -progress - -protocol_whitelist file,http,https,tcp,tls,crypto -i %myvar%
 
-
 :END
 
