@@ -16,10 +16,6 @@ IF %errorlevel%==0 (
 	GOTO SYORI
 ) else (
 	for /f %%i in ('powershell -command "[System.Text.Encoding]::UTF8.GetString([System.Convert]::FromBase64String('%myvar%'))"') do set myvar=%%i
-    
-
-
-	
 	goto SYORI
 )
 
