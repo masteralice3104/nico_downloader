@@ -182,14 +182,24 @@ function VideoDown() {
                             if(hlssavemode=="1"){
                                 URItext =URItext+ "\nここをクリック後「dl.batを開く」を押してダウンロードできます";
                             }
+                            
 
-                            const URItext2 = playlistURL +"(((-c(((copy"+"((("+ video_name;
+                            //base64エンコードする
+                            video_name = video_name.replace(/ /g,"(((");
+
+
+
+                            
+                            let URItext2 = playlistURL +"((("+"-c"+"((("+"copy"+"((("+ '"'+video_name+'"';
+                            URItext2=window.btoa(unescape(encodeURIComponent(URItext2))); 
 
                             //document.querySelector("#js-app > div > div.WatchAppContainer-main > div.HeaderContainer > div.HeaderContainer-topArea > div.HeaderContainer-topAreaLeft > p > a").innerText = apptext;
                             document.querySelector("#js-app > div > div.WatchAppContainer-main > div.HeaderContainer > div.HeaderContainer-topArea > div.HeaderContainer-topAreaLeft > p > a").innerText = URItext;
                             document.querySelector("#js-app > div > div.WatchAppContainer-main > div.HeaderContainer > div.HeaderContainer-topArea > div.HeaderContainer-topAreaLeft > p > a").href = "nicodown:"+URItext2;
 
                                         
+
+                            
                             //読み込み形跡を残す
                             video_link_smid = video_sm;
                             DebugPrint("smid上書き");
@@ -272,3 +282,4 @@ async function Downloadblob(url){
         })
         await new Promise(resolve => { setTimeout(resolve, 1000); });
 }
+
