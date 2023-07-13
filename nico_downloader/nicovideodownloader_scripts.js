@@ -1,15 +1,15 @@
+
+
 //残したい変数
 let video_link_smid = "-1"; //-1はロードしてない
+let downloading = 0;        //0はDLしてない、1はダウンロード最中
 
 
-    
 
 //ダウンロード関数
 
 function VideoDown() {
 
-    //動画取得先の定義
-    let video_URL = String(document.querySelector("#MainVideoPlayer > video").getAttribute('src'));
 
     //動画タイトルの定義
     let video_title = document.querySelector("#js-app > div > div.WatchAppContainer-main > div.HeaderContainer > div.HeaderContainer-topArea > div.HeaderContainer-topAreaLeft > h1").innerText;
@@ -18,25 +18,25 @@ function VideoDown() {
     let video_sm = ""
     let match_sm = "0"
     try {
-        DebugPrint("match_sm初期値 : " +match_sm) 
+        DebugPrint("match_sm初期値 : " + match_sm)
         match_sm = setOption("video_pattern");
-        DebugPrint("match_sm読込 : " +match_sm) 
-        if(match_sm == "0"){
-            match_sm = "sm[0-9]{1,}";    
+        DebugPrint("match_sm読込 : " + match_sm)
+        if (match_sm == "0") {
+            match_sm = "sm[0-9]{1,}";
         }
-        DebugPrint("match_smｴﾗｰ処理 : " +match_sm) 
+        DebugPrint("match_smｴﾗｰ処理 : " + match_sm)
     } catch (error) {
         match_sm = "sm[0-9]{1,}";
-        DebugPrint("ndl:er "+error)
+        DebugPrint("ndl:er " + error)
     }
     if (location.href.match(match_sm)) {
         video_sm = location.href.match(match_sm).toString();
         DebugPrint("location.href.match match_sm true")
-        DebugPrint("match_sm : " +match_sm)
+        DebugPrint("match_sm : " + match_sm)
     } else {
         DebugPrint("location.href.match match_sm false")
-        DebugPrint("match_sm : " +match_sm)
-        DebugPrint("setOption(\"video_pattern\") : "+setOption("video_pattern"))
+        DebugPrint("match_sm : " + match_sm)
+        DebugPrint("setOption(\"video_pattern\") : " + setOption("video_pattern"))
         return;
     }
 
@@ -68,15 +68,11 @@ function VideoDown() {
         DebugPrint("video_link_smidリセット")
         DebugPrint("video_link_smid : " + video_link_smid)
         DebugPrint("video_sm : " + video_sm)
-            //video_link_smidが現在のものと同じじゃないならすでに読み込んだ形跡があるので一回消す
+        //video_link_smidが現在のものと同じじゃないならすでに読み込んだ形跡があるので一回消す
         video_link_smid = "-1";
         document.querySelector("#js-app > div > div.WatchAppContainer-main > div.HeaderContainer > div.HeaderContainer-topArea > div.HeaderContainer-topAreaLeft > p").remove();
 
     }
-    if (video_link_smid === "-1") {
-        console.log("URL取得 : " + document.querySelector("#MainVideoPlayer > video").getAttribute('src'));
-    }
-
     //ダウンロードリンクの表示
     if (video_link_smid === "-1") {
 
@@ -97,126 +93,170 @@ function VideoDown() {
         if (document.querySelector("#MainVideoPlayer > video").getAttribute('src') != null) {
             //httpの場合
             if (document.querySelector("#MainVideoPlayer > video").getAttribute('src').match(/ht2/) != null) {
-
+                //ここは廃止
             } else {
                 //hlsになっている場合
                 DebugPrint("hls mode");
                 const hlssavemode = setOption("video_hlssave");
-                
-                let add_error = "<p>ダウンロードするためにはシステムメッセージを開いてください</p>";
-                if(hlssavemode=="0"){
+
+                let add_error = "<p>" + video_name + "</p><p>をダウンロードするためにはシステムメッセージを開いてください";
+                if (hlssavemode == "0") {
                     const optionURL = chrome.runtime.getURL('options.html');
-                    add_error = "<p>◆◆◆◆nico downloaderの初期設定を行ってください◆◆◆◆</p><p><a href=\""+optionURL+"\">設定画面を開く</a></p>";
-                }else if(hlssavemode=="1"){
-                    add_error += "<p>動画画面上を右クリック→システムメッセージを開く で開けます</p>"
+                    add_error = "<p>◆◆◆◆nico downloaderの初期設定を行ってください◆◆◆◆</p><p><a href=\"" + optionURL + "\">設定画面を開く</a></p>";
+                } else if (hlssavemode == "1") {
+                    add_error += "</p>"
+                } else if (hlssavemode == "2") {
+                    add_error += "[高速モード]</p>";
                 }
-                
+
+
                 document.querySelector("#js-app > div > div.WatchAppContainer-main > div.HeaderContainer > div.HeaderContainer-topArea > div.HeaderContainer-topAreaLeft > p > a").innerHTML = add_error;
 
-                if(document.getElementsByClassName('SystemMessageContainer-info').length == 0){
+                if (document.getElementsByClassName('SystemMessageContainer-info').length == 0) {
                     return false;
                 }
-                
+
                 ////////////////////////////////////////////////////////////////
                 // ここから実行部分
                 ////////////////////////////////////////////////////////////////
                 /*
                 
                 */
-                
+
                 //メッセージより読み込み
                 let rawMessage;
                 let tempURL = '';
-                
-                for (let i = 0; i <document.getElementsByClassName('SystemMessageContainer-info').length; i++){
-                    DebugPrint("masterURL"+i)
-                    const message =document.getElementsByClassName('SystemMessageContainer-info')[i].innerText;
-                    if(message.match(/(動画の読み込みを開始しました。).*/)){
+
+                for (let i = 0; i < document.getElementsByClassName('SystemMessageContainer-info').length; i++) {
+                    DebugPrint("masterURL" + i)
+                    const message = document.getElementsByClassName('SystemMessageContainer-info')[i].innerText;
+                    if (message.match(/(動画の読み込みを開始しました。).*/)) {
                         DebugPrint("URL発見");
                         rawMessage = String(message)
-                        tempURL = String(rawMessage.replace('動画の読み込みを開始しました。（','').replace('）',''));
-                        DebugPrint("masterURL:"+tempURL);
+                        tempURL = String(rawMessage.replace('動画の読み込みを開始しました。（', '').replace('）', ''));
+                        DebugPrint("masterURL:" + tempURL);
                     }
 
-                    
+
                 };
-                if(tempURL==null)return false;
-                if(tempURL=='')return false;
+                if (tempURL == null) return false;
+                if (tempURL == '') return false;
                 const masterURL = tempURL;
-                if(masterURL==null)return false;
+                if (masterURL == null) return false;
 
-                DebugPrint("masterURL:"+masterURL);
-
+                DebugPrint("masterURL:" + masterURL);
+                if (downloading) return false;
+                //ダウンロード中フラグ建てる
+                downloading = true;
 
                 const xhr_master = new XMLHttpRequest();//XMLHttpRequest
-                let masterRawMessage,playlistURL
+                let masterRawMessage, playlistURL
 
                 xhr_master.open('GET', masterURL);      //GETを作る
                 xhr_master.send();                      //リクエストを投げる
-                xhr_master.onreadystatechange=function(){
-                    if(xhr_master.readyState===4&&xhr_master.status===200){
+                xhr_master.onreadystatechange = function () {
+                    if (xhr_master.readyState === 4 && xhr_master.status === 200) {
+
+
+
+
+                        if (video_link_smid == video_sm) {
+                            return false;
+                        }
+                        //ここで一回止める
+                        //読み込み形跡を残す
+                        video_link_smid = video_sm;
+                        DebugPrint("smid上書き");
+
                         //取得完了したらここに飛ぶ
                         masterRawMessage = this.responseText;
-                                                
+
                         //文字列を行ごとに分解する
                         let masterURLGyou = masterRawMessage.split(/\r\n|\n/);
                         //3行目は常に高画質っぽいのでそれだけ抽出
-                        playlistURL = String(masterURL.match(/(https.).*(master.m3u8?.)/g)).replace('master.m3u8?','') + masterURLGyou[2];
+                        playlistURL = String(masterURL.match(/(https.).*(master.m3u8?.)/g)).replace('master.m3u8?', '') + masterURLGyou[2];
                         DebugPrint("playlistURL: " + playlistURL);
-                        
+
+
+                        //playlistURLにはダウンロードすべきm3u8のURLが入ってるのでそれをダウンロード
+                        const xhr_playlist = new XMLHttpRequest();
+                        xhr_playlist.open('GET', playlistURL);
+                        xhr_playlist.send();
+                        xhr_playlist.onreadystatechange = function () {
+                            if (xhr_master.readyState === 4 && xhr_master.status === 200) {
+                                //取得完了したらここに飛ぶ
+                                let playlistRawMessage = this.responseText;
+
+
+
+                                //https://stabucky.com/wp/archives/10419
+                                playlistRawMessage = playlistRawMessage.trim();
+                                playlistRawMessage = playlistRawMessage.replace(/(\r?\n)+/g, "\n");
+
+                                const playlistMessage = playlistRawMessage.split(/\r\n|\n/);
+                                DebugPrint(playlistMessage);
+
+
+                                //神 of GOD
+                                //https://github.com/naari3/nico-downloader-ffmpeg/blob/main/src/background.ts
+                                //ご協力感謝します
 
 
 
 
-                       
 
-                            
- 
 
-                            
-                            const apptext = video_name + " をダウンロード(にこだうんろーだーを起動)";
-                            //const URItext = "nicodown:"+command;
-                            //const URItext = "ffmpeg -protocol_whitelist file,http,https,tcp,tls,crypto "+command+" -filter_complex \"concat=n="+ TSURLs.length +":v=1:a=1\"  output.mp4"
-                            //const URItext = "-protocol_whitelist file,http,https,tcp,tls,crypto -i "+ playlistURL +" -c copy "+ video_name;
-                            let URItext = video_name+"をダウンロード(ffmpegを開きます)";
-                            if(hlssavemode=="1"){
-                                URItext =URItext+ "\nここをクリック後「dl.batを開く」を押してダウンロードできます";
+                                // playlistのアイテムを全部読み込む
+
+                                //読み込んだTSファイルの置き場所配列
+                                let TSURLs = [];
+
+                                for (let i = 0; i < playlistMessage.length; i++) {
+                                    let element = playlistMessage[i];
+                                    if (element.match(/#/)) {
+                                        //#が入ってる行は飛ばす
+                                    } else if (element == "") {
+                                        //空行は飛ばす
+                                    } else {
+                                        //TSURLの取得
+                                        const TSURL = String(playlistURL.match(/(https.).*(playlist.m3u8?.)/g)).replace('playlist.m3u8?', '') + element;
+                                        TSURLs.push(TSURL);
+                                    }
+
+                                    if (element.match(/ENDLIST/)) {
+                                        DebugPrint("TSURLs.length:" + TSURLs.length);
+                                        if (TSURLs.length == 0) {
+                                            return;
+                                        }
+
+                                        documentWriteText(video_name + "をダウンロード");
+                                        documentWriteOnclick(DLstartOnclick(TSURLs, video_sm, video_name));
+
+                                    }
+                                }
+
+
+
+
+                                //フラグ戻す
+                                downloading = false;
+
+
+
+
+
+
+                                //読み込み形跡を残す
+                                video_link_smid = video_sm;
+                                DebugPrint("smid上書き");
+
                             }
-                            
-
-                            //base64エンコードする
-                            video_name = video_name.replace(/ /g,"(((");
+                        }
 
 
-
-                            
-                            let URItext2 = playlistURL +"((("+"-c"+"((("+"copy"+"((("+ '"'+video_name+'"';
-                            URItext2=window.btoa(unescape(encodeURIComponent(URItext2))); 
-
-                            //document.querySelector("#js-app > div > div.WatchAppContainer-main > div.HeaderContainer > div.HeaderContainer-topArea > div.HeaderContainer-topAreaLeft > p > a").innerText = apptext;
-                            document.querySelector("#js-app > div > div.WatchAppContainer-main > div.HeaderContainer > div.HeaderContainer-topArea > div.HeaderContainer-topAreaLeft > p > a").innerText = URItext;
-                            document.querySelector("#js-app > div > div.WatchAppContainer-main > div.HeaderContainer > div.HeaderContainer-topArea > div.HeaderContainer-topAreaLeft > p > a").href = "nicodown:"+URItext2;
-
-                                        
-
-                            
-                            //読み込み形跡を残す
-                            video_link_smid = video_sm;
-                            DebugPrint("smid上書き");
-
-                            
-                            if(setOption("video_autosave") == "1"){
-                                //videoDL(video_name,window.URL.createObjectURL(blob));
-                                DebugPrint("video_autosave run");
-                                setTimeout(function(){document.querySelector("#DLlink > a").click();}, 1000); 
-                                
-                            }
-                        
-                    
-
+                    }
                 }
-                }
-                
+
 
             }
 
@@ -227,26 +267,27 @@ function VideoDown() {
     return true;
 };
 
+let interval1st = false;
+let intervalId;
 try {
 
-    const intervalId = setInterval(() => {
-        try {
-            VideoDown();
-        } catch (e) {
-            console.log(e);
+    clearInterval(intervalId)
+    intervalId = setInterval(() => {
+
+        if (interval1st) {
+            try {
+                VideoDown();
+            } catch (e) {
+                console.log(e);
+            }
+        } else {
+            interval1st = true;
         }
 
     }, 2000);
 } catch (error) {
     console.log(e);
 }
-function StartScript() {
-    let innerHTML = ``;
-    appendScriptHTML(innerHTML);
-
-        
-}
-
 function appendScriptURL(URL) {
 
     let script_li = document.createElement("script");
@@ -260,26 +301,22 @@ function appendScriptHTML(innerHTML) {
     document.body.appendChild(script_li);
 }
 
-
 //ページ表示時発火処理
-window.onload = function() {
-    StartScript();
+window.onload = function () {
     Option_setLoading("video_downloading");
 
 
 }
 
 
-async function Downloadblob(url){
-
-        //TSの取得
-        await fetch(url, { method: 'GET' })
-        .then( response => {
-        return response.blob();
-        })
-        .then( blob => {
-            return blob;
-        })
-        await new Promise(resolve => { setTimeout(resolve, 1000); });
+function documentWriteText(URItext) {
+    document.querySelector("#js-app > div > div.WatchAppContainer-main > div.HeaderContainer > div.HeaderContainer-topArea > div.HeaderContainer-topAreaLeft > p > a").innerText = URItext;
 }
+function documentWriteOnclick(onclick) {
+    document.querySelector("#js-app > div > div.WatchAppContainer-main > div.HeaderContainer > div.HeaderContainer-topArea > div.HeaderContainer-topAreaLeft > p > a").onclick = onclick;
+}
+async function DLstartOnclick(TSURLs, video_sm, video_name) {
+    documentWriteText("処理中……");
+    await DownEncoder(TSURLs, video_sm, video_name);
 
+}

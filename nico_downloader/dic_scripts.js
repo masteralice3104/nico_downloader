@@ -4,7 +4,7 @@ let end_res = 0;
 
 
 //ページ表示時発火処理
-window.onload = function() {
+window.onload = function () {
     Start_Dic();
 }
 
@@ -93,9 +93,9 @@ function prev_30load() {
         //https://www.codit.work/notes/ld2h3c2k1coufqauzydl/ を参考にした
         const result = fetch(DL_URL, {
             method: "GET"
-        }).then(function(response) {
+        }).then(function (response) {
             return response.text();
-        }).then(function(data) {
+        }).then(function (data) {
             const parser = new DOMParser();
             const doc = parser.parseFromString(data, "text/html");
 
@@ -117,7 +117,7 @@ function prev_30load() {
             //番号更新
             refresh_resNo();
 
-            if (start_res != 1) {} else {
+            if (start_res != 1) { } else {
                 document.getElementById("prev_30").remove();
 
                 let last_element = document.createElement('p');
@@ -143,9 +143,9 @@ function next_30load() {
         //https://www.codit.work/notes/ld2h3c2k1coufqauzydl/ を参考にした
         const result = fetch(DL_URL, {
             method: "GET"
-        }).then(function(response) {
+        }).then(function (response) {
             return response.text();
-        }).then(function(data) {
+        }).then(function (data) {
             const parser = new DOMParser();
             const doc = parser.parseFromString(data, "text/html");
 

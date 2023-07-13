@@ -3,7 +3,8 @@
 
 <head>
     <meta charset="UTF-8">
-    <meta http-equiv="origin-trial" content="AoZPFf9x/3+yZ6RSdPSPyGl1KQX+FKis9ohVYVYJYcjg6lVRQ3vR73IJ71BW32lf/DUgO+aSbTXJu1CYj5EFiQoAAAB+eyJvcmlnaW4iOiJjaHJvbWUtZXh0ZW5zaW9uOi8vZG5jamNhZHBvYWtlZmpwbmFiaW1wYWxlbmxpZWhiaWciLCJmZWF0dXJlIjoiVW5yZXN0cmljdGVkU2hhcmVkQXJyYXlCdWZmZXIiLCJleHBpcnkiOjE2NTg4Nzk5OTl9">
+    <meta http-equiv="origin-trial"
+        content="AoZPFf9x/3+yZ6RSdPSPyGl1KQX+FKis9ohVYVYJYcjg6lVRQ3vR73IJ71BW32lf/DUgO+aSbTXJu1CYj5EFiQoAAAB+eyJvcmlnaW4iOiJjaHJvbWUtZXh0ZW5zaW9uOi8vZG5jamNhZHBvYWtlZmpwbmFiaW1wYWxlbmxpZWhiaWciLCJmZWF0dXJlIjoiVW5yZXN0cmljdGVkU2hhcmVkQXJyYXlCdWZmZXIiLCJleHBpcnkiOjE2NTg4Nzk5OTl9">
 
     <meta http-equiv="X-UA-Compatible" content="IE=edge">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -13,22 +14,25 @@
 <body>
     <div>
         <p>
-            <h1>設定 － nico downloader</h1>
+        <h1>設定 － nico downloader</h1>
         </p>
     </div>
     <form id="form">
-        <div>
+        <div style="padding: 10px; margin-bottom: 10px; border: 10px solid #ff0000; border-radius: 20px;">
             <label><b>初期設定の仕方</b></label>
-            <p><h2><a href="https://note.com/masteralice3104/n/na6149cd919aa">初期設定の仕方はここにわかりやすい説明がありますので読んでみてください</a></h2></p>
-            <p></p><p></p>
-            <p>初期設定の簡易説明</p>
-            <p>1.<a href="win/save_setting.bat" download="win/save_setting.bat">ここから</a>設定用バッチファイルを保存します。</p>
-            <p>2.バッチファイルを「動画を保存するディレクトリ」に移動し実行します。</p>
-            <p>3.途中で管理者権限を要求されますので必ず許可してください。</p>
-            <p>4.しばらくダウンロードに時間がかかります。最後に「これでnico downloaderを使用可能になりました」と表示されれば終了です。</p>
-            <p>5.下記「初期設定モード」をOFFにして、最下部の「保存」ボタンを押して設定完了です。</p>
+            <p>
+            <h2><a href="https://note.com/masteralice3104/n/nd8fc5fbc4d57">初期設定の仕方はここにわかりやすい説明がありますので読んでみてください</a></h2>
+            </p>
+            <p></p>
+            <p></p>
+            <p>保存方法の簡易説明</p>
+            <p>1.下記「初期設定モード」をOFFにし、ページの一番下にある「保存」ボタンを押下します。</p>
+            <p>2.動画ページを開き、動画画面上を右クリックします。</p>
+            <p>3.「システムメッセージを開く」を開きます。</p>
+            <p>4.しばらくダウンロードと変換処理に時間がかかります。</p>
+            <p>5.動画が保存されます。既定のフォルダに自動保存または保存ダイアログが表示されます。(Chromeの保存設定によります)</p>
         </div>
-        
+
         <div>
             <label><b>初期設定モード</b></label>
             <p>－　hlsモードで保存をするための初期設定が必要です。</p>
@@ -36,23 +40,24 @@
             <p id="video_hlssave_now_setting">現在の設定：</p>
             <p>
                 <select name="video_hlssave" id="video_hlssave" value="0">
-                                <option value="0">ON</option>
-                                <option value="1" selected>OFF - 切り替え方を表示</option>
-                                <option value="2" selected>OFF - 最小限の表示</option>
+                    <option value="0">ON</option>
+                    <option value="1" selected>OFF</option>
+                    <!--<option value="2" selected>OFF - 高速モード</option>-->
                 </select>
             </p>
         </div>
-        <br><br><br>        <div>
+        <br><br><br>
+        <div>
             <label><b>デフォルト保存名</b></label>
             <p>－　「名前を付けて保存」画面でデフォルトで命名されるファイル名を設定できます</p>
             <p></p>
             <p id="video_downloading_now_setting">現在の設定：</p>
             <p><select name="video_downloading" id="video_downloading" value="0">
-            <option value="0" selected>[動画番号].mp4</option>
-            <option value="1">[動画タイトル].mp4</option>
-            <option value="2">[動画番号]_[動画タイトル].mp4</option>
-            <option value="3">[動画タイトル]_[動画番号].mp4</option>
-        </select></p>
+                    <option value="0" selected>[動画番号].mp4</option>
+                    <option value="1">[動画タイトル].mp4</option>
+                    <option value="2">[動画番号]_[動画タイトル].mp4</option>
+                    <option value="3">[動画タイトル]_[動画番号].mp4</option>
+                </select></p>
         </div>
         <br><br><br>
         <div>
@@ -60,18 +65,21 @@
             <p>－　特定のパターンでのみ反応するように変更できます。</p>
             <p>－　Javascriptの正規表現で記載してください。</p>
             <p id="video_pattern_now_setting">現在の設定：</p>
-            <p>https://www.nicovideo.jp/watch/<input type="text" name="video_pattern" id="video_pattern" value="sm[0-9]{1,}"></p>
+            <p>https://www.nicovideo.jp/watch/<input type="text" name="video_pattern" id="video_pattern"
+                    value="sm[0-9]{1,}"></p>
         </div>
         <br><br><br>
-        <div>
+
+
+        <div style="display: none;">
             <label><b>自動保存設定</b></label>
             <p>－　リンクの作成ができた時点で自動で保存処理が走るようになります。</p>
             <p>－　鬱陶しい時はOFFにしましょう</p>
             <p id="video_autosave_now_setting">現在の設定：</p>
             <p>
                 <select name="video_autosave" id="video_autosave" value="0">
-                                <option value="0" selected>OFF</option>
-                                <option value="1">ON</option>
+                    <option value="0" selected>OFF</option>
+                    <option value="1">ON</option>
                 </select>
             </p>
         </div>
@@ -83,8 +91,8 @@
             <p id="debug_now_setting">現在の設定：</p>
             <p>
                 <select name="debug" id="debug" value="0">
-                                <option value="0" selected>OFF</option>
-                                <option value="1">ON</option>
+                    <option value="0" selected>OFF</option>
+                    <option value="1">ON</option>
                 </select>
             </p>
         </div>
@@ -99,9 +107,11 @@
     </div>
 
     <div><a href="https://note.com/masteralice3104/n/n4586ff69c799">nico downloaderの現状、不具合、リリースノートなどはこちらから</a></div>
-    <div>不具合・バグ報告・ソフトウェアについての要望などは<a href="https://odaibako.net/u/masteralice3104">お題箱</a>もしくは<a href="https://twitter.com/masteralice3104">Twitter</a>から</div>
+    <div>不具合・バグ報告・ソフトウェアについての要望などは<a href="https://twitter.com/masteralice3104">Twitter</a>から</div>
     <div>
-        <p id="version"></p>
+        <b>
+            <p id="version"></p>
+        </b>
     </div>
 
 </body>

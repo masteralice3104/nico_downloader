@@ -2,7 +2,7 @@
 let save_flag = true;
 
 //ロード時
-window.onload = function() {
+window.onload = function () {
     newload();
     Options_onload();
     SoftVersionWrite();
@@ -22,7 +22,7 @@ window.onload = function() {
 
 function Options_view_select(name) {
     let name_func = name;
-    chrome.storage.local.get(name_func, function(value) {
+    chrome.storage.local.get(name_func, function (value) {
         //chrome.storage.localから読み出し
 
         document.getElementById(name_func).value = setOption(name_func);
@@ -37,7 +37,7 @@ function Options_view_select(name) {
 
 function Options_view_input(name) {
     name_func = name;
-    chrome.storage.local.get(name_func, function(value) {
+    chrome.storage.local.get(name_func, function (value) {
         //chrome.storage.localから読み出し
         document.getElementById(name_func).value = setOption(name_func);
         localStorage.setItem(name_func, setOption(name_func));

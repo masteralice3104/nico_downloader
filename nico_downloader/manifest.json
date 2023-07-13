@@ -2,7 +2,7 @@
     "manifest_version": 3,
     "name": "nico downloader",
     "description": "ニコニコからの動画保存をサポートする他、ニコニコを便利に使うための非公式の拡張機能です。",
-    "version": "2.0.0.1",
+    "version": "3.0.0.0",
     "icons": {
         "16": "icon_16.png",
         "48": "icon_48.png",
@@ -11,22 +11,40 @@
     "permissions": [
         "storage"
     ],
-    "web_accessible_resources": [{
-        "matches" : [ "https://www.nicovideo.jp/*" ],
-        "resources" : [ "win/save_setting.bat",
-                        "options.html"
-    ]
-    } ],
-    "content_scripts": [{
-        "matches": ["https://www.nicovideo.jp/*"],
-        "js": ["nicovideodownloader_scripts.js",
-            "options.js"
-        ]
-    }, {
-        "matches": ["https://dic.nicovideo.jp/*"],
-        "js": ["dic_scripts.js",
-            "options.js"
-        ]
-    }],
+    "web_accessible_resources": [
+        {
+            "matches": [
+                "https://www.nicovideo.jp/*"
+            ],
+            "resources": [
+                "options.html",
+                "dist/ffmpeg-core2.js",
+                "dist/ffmpeg-core.wasm",
+                "dist/utils.js"
+            ]
+        }
+    ],
+    "content_scripts": [
+        {
+            "matches": [
+                "https://www.nicovideo.jp/*"
+            ],
+            "js": [
+                "nicovideodownloader_scripts.js",
+                "options.js",
+                "dist/ffmpeg-core2.js",
+                "dist/utils.js"
+            ]
+        },
+        {
+            "matches": [
+                "https://dic.nicovideo.jp/*"
+            ],
+            "js": [
+                "dic_scripts.js",
+                "options.js"
+            ]
+        }
+    ],
     "options_page": "options.html"
 }

@@ -6,7 +6,7 @@ LocalStorageで保存される値について
 "video_downloading"     0                   デフォルト保存名設定
 "video_pattern"         sm[0-9]{1,}         反応するURL設定名
 "video_autosave"        0                   1だと自動で保存処理が走ります
-"video_hlssave"         0                   0だとレジストリ登録支援モード、1だと通常モード
+"video_hlssave"         0                   0だと初期設定、1だと低速、2だと高速モード
 "debug"                 0                   1だとデバッグ出力あり
  */
 
@@ -16,7 +16,7 @@ function Option_setWriting(name, value) {
     localStorage.setItem(name, value);
     chrome.storage.local.set({
         [name]: value
-    }, function() {
+    }, function () {
         //chrome.storage.localに保存
     })
     return true;
@@ -27,11 +27,11 @@ function Option_setLoading(name) {
     //return localStorage.getItem(name);//これだとだめ
 
     try {
-        chrome.storage.local.get(name, function(value) {
-                //chrome.storage.localから読み出し
-                localStorage.setItem(name, value[name]);
-            })
-            //return return_val;
+        chrome.storage.local.get(name, function (value) {
+            //chrome.storage.localから読み出し
+            localStorage.setItem(name, value[name]);
+        })
+        //return return_val;
         return localStorage.getItem(name);
 
     } catch (error) {
@@ -51,7 +51,7 @@ function setOption(name) {
         }
 
     } catch (error) {
-        DebugPrint("ndl:"+error)
+        DebugPrint("ndl:" + error)
         return 0;
     }
 }
@@ -71,9 +71,9 @@ function defalt_dataWrite() {
     Option_setWriting("newloading", "1");
     Option_setWriting("video_downloading", "0");
     Option_setWriting("video_pattern", "sm[0-9]{1,}");
-    Option_setWriting("video_autosave","0");
+    Option_setWriting("video_autosave", "0");
     Option_setWriting("debug", "0");
-    Option_setWriting("video_hlssave","0")
+    Option_setWriting("video_hlssave", "0")
     Options_Save();
 }
 
