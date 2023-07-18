@@ -224,6 +224,7 @@ function VideoDown() {
                                     }
 
                                     if (element.match(/ENDLIST/)) {
+                                        //ENDLISTが入ってる行まで読み込めばOK
                                         DebugPrint("TSURLs.length:" + TSURLs.length);
                                         if (TSURLs.length == 0) {
                                             return;

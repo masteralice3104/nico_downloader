@@ -49,8 +49,8 @@ const b64ToUint8Array = (str) => (Uint8Array.from(atob(str), c => c.charCodeAt(0
 //ここから追記
 async function DownEncoder(TSURLs, video_sm, video_name, format = "mp4") {
 
-  //if (last_load_sm === video_sm) return;
-  //last_load_sm = video_sm;//2度読み込みを防ぐ
+  if (last_load_sm === video_sm) return;
+  last_load_sm = video_sm;//2度読み込みを防ぐ
   faults = 0;//失敗数を記録
   load_percentage = 0;//読み込みパーセント
 
@@ -101,39 +101,60 @@ async function DownEncoder(TSURLs, video_sm, video_name, format = "mp4") {
   //URLsを片っ端から処理
   //落としてファイルシステムにいれていく
   let Fstext = "";
+  let promises = [];
   for (let i = 0; i < TSURLs.length; i++) {
-    //動画を見ながらの低速モード
-    const hlssavemode = setOption("video_hlssave");
-    //if (hlssavemode == "1") {
-    //  sleep(500);
-    //}
-    await DownloadUint8Array(TSURLs[i])
-      .then(byte => {
-        let filenumber = i + 1;
 
-        let filename = video_sm + "-" + filenumber + ".ts";
-        core.FS.writeFile(filename, byte);
-        DebugPrint("FSwrite:" + filename);
+    const promise = new Promise((resolve, reject) => {
 
-        const downpercentage = 100 * filenumber / TSURLs.length;
-        if (downpercentage > load_percentage) {
-          load_percentage = downpercentage;
-        }
-        let text_dl = "ダウンロード中…… (" + load_percentage.toFixed(1) + "%)";
-        if (faults != 0) {
-          text_dl += "●";
-        }
 
-        documentWriteText(text_dl);
-        Fstext += "file '" + filename + "'\n";
-        DebugPrint(core.FS.stat(filename));
-      });
+      DownloadUint8Array(TSURLs[i])
+        .then(byte => {
+          let filenumber = i + 1;
+
+          let filename = video_sm + "-" + filenumber + ".ts";
+          core.FS.writeFile(filename, byte);
+          DebugPrint("FSwrite:" + filename);
+
+          const downpercentage = 100 * filenumber / TSURLs.length;
+          if (downpercentage > load_percentage) {
+            load_percentage = downpercentage;
+          }
+          let text_dl = "ダウンロード中…… (" + load_percentage.toFixed(1) + "%)";
+          if (faults != 0) {
+            text_dl += "●";
+          }
+
+          documentWriteText(text_dl);
+
+          DebugPrint(core.FS.stat(filename));
+          resolve(filename);
+        });
+
+
+
+    });
+
+    promises.push(promise);
+
+    if (i % 2 == 1) {
+      await Promise.all(promises);
+    }
+  }
+  for (let i = 0; i < TSURLs.length; i++) {
+    const filenumber = i + 1;
+    const filename = video_sm + "-" + filenumber + ".ts";
+    Fstext += "file '" + filename + "'\n";
   }
   const textname = video_sm + ".txt";
   core.FS.writeFile(textname, new TextEncoder().encode(Fstext));
 
   //Transcodeする
-  await Transcode(core, video_sm);
+
+  await Promise.all(promises).then(() => {
+    //await Transcode(core, video_sm);
+    Transcode(core, video_sm);
+  }
+  )
 
   return;
 
@@ -145,7 +166,7 @@ async function Downloadblob(url) {
   }
 
   //TSの取得
-  let res = await fetch_retry(url, { method: 'GET' }, 50);
+  let res = await fetch_retry(url, { method: 'GET' }, 100);
 
 
   let blob = res.blob();
