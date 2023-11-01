@@ -5,6 +5,8 @@ let video_link_smid = "-1"; //-1はロードしてない
 let downloading = 0;        //0はDLしてない、1はダウンロード最中
 
 
+const VideoTitleElement = '#js-app > div > div > div.BaseLayout-contents > div.WatchAppContainer-main > div.HeaderContainer > div.HeaderContainer-topArea > div.HeaderContainer-topAreaLeft';
+const VideoTitle = '#js-app > div > div > div.BaseLayout-contents > div.WatchAppContainer-main > div.HeaderContainer > div.HeaderContainer-topArea > div.HeaderContainer-topAreaLeft > h1';
 
 //ダウンロード関数
 
@@ -12,7 +14,7 @@ function VideoDown() {
 
 
     //動画タイトルの定義
-    let video_title = document.querySelector("#js-app > div > div.WatchAppContainer-main > div.HeaderContainer > div.HeaderContainer-topArea > div.HeaderContainer-topAreaLeft > h1").innerText;
+    let video_title = document.querySelector(VideoTitle).innerText;
 
     //動画sm番号の定義
     let video_sm = ""
@@ -41,28 +43,7 @@ function VideoDown() {
     }
 
     //デフォルト動画ファイル名の定義
-    //let video_name = video_sm + ".mp4";
-    let video_name = "";
-    let video_name_value = setOption("video_downloading");
-
-    //video_name
-    if (video_name_value !== "1" &&
-        video_name_value !== "2" &&
-        video_name_value !== "3") {
-
-        video_name = video_name + video_sm;
-    } else if (video_name_value === "1") {
-        video_name = video_name + video_title;
-    } else if (video_name_value === "2") {
-        video_name = video_name + video_sm;
-        video_name = video_name + "_";
-        video_name = video_name + video_title;
-    } else if (video_name_value === "3") {
-        video_name = video_name + video_title;
-        video_name = video_name + "_";
-        video_name = video_name + video_sm;
-    }
-    video_name = video_name + ".mp4";
+    const video_name = VideoNameMake(video_sm, video_title);
 
     if (video_link_smid !== video_sm && video_link_smid !== "-1") {
         DebugPrint("video_link_smidリセット")
@@ -70,7 +51,7 @@ function VideoDown() {
         DebugPrint("video_sm : " + video_sm)
         //video_link_smidが現在のものと同じじゃないならすでに読み込んだ形跡があるので一回消す
         video_link_smid = "-1";
-        document.querySelector("#js-app > div > div.WatchAppContainer-main > div.HeaderContainer > div.HeaderContainer-topArea > div.HeaderContainer-topAreaLeft > p").remove();
+        document.querySelector(VideoTitleElement + " > p").remove();
 
     }
     //ダウンロードリンクの表示
@@ -84,8 +65,8 @@ function VideoDown() {
         a_link.innerText = "処理中";
 
         if (!document.getElementById(p_link.id)) {
-            document.querySelector("#js-app > div > div.WatchAppContainer-main > div.HeaderContainer > div.HeaderContainer-topArea > div.HeaderContainer-topAreaLeft").appendChild(p_link);
-            document.querySelector("#js-app > div > div.WatchAppContainer-main > div.HeaderContainer > div.HeaderContainer-topArea > div.HeaderContainer-topAreaLeft > p").appendChild(a_link);
+            document.querySelector(VideoTitleElement).appendChild(p_link);
+            document.querySelector(VideoTitleElement + " > p").appendChild(a_link);
         }
 
 
@@ -110,7 +91,7 @@ function VideoDown() {
                 }
 
 
-                document.querySelector("#js-app > div > div.WatchAppContainer-main > div.HeaderContainer > div.HeaderContainer-topArea > div.HeaderContainer-topAreaLeft > p > a").innerHTML = add_error;
+                document.querySelector(VideoTitleElement + " > p > a").innerHTML = add_error;
 
                 if (document.getElementsByClassName('SystemMessageContainer-info').length == 0) {
                     return false;
@@ -210,11 +191,17 @@ function VideoDown() {
 
                                 //読み込んだTSファイルの置き場所配列
                                 let TSURLs = [];
+                                let fps = 60;
 
                                 for (let i = 0; i < playlistMessage.length; i++) {
                                     let element = playlistMessage[i];
                                     if (element.match(/#/)) {
                                         //#が入ってる行は飛ばす
+
+                                        if (element.match(/FRAME-RATE=([\d.]+)/)) {
+                                            fps = element.match(/FRAME-RATE=([\d.]+)/);
+                                        }
+
                                     } else if (element == "") {
                                         //空行は飛ばす
                                     } else {
@@ -231,7 +218,7 @@ function VideoDown() {
                                         }
 
                                         documentWriteText(video_name + "をダウンロード");
-                                        documentWriteOnclick(DLstartOnclick(TSURLs, video_sm, video_name));
+                                        documentWriteOnclick(DLstartOnclick(TSURLs, video_sm, video_name, String(fps)));
 
                                     }
                                 }
@@ -311,13 +298,38 @@ window.onload = function () {
 
 
 function documentWriteText(URItext) {
-    document.querySelector("#js-app > div > div.WatchAppContainer-main > div.HeaderContainer > div.HeaderContainer-topArea > div.HeaderContainer-topAreaLeft > p > a").innerText = URItext;
+    document.querySelector(VideoTitleElement + " > p > a").innerText = URItext;
 }
 function documentWriteOnclick(onclick) {
-    document.querySelector("#js-app > div > div.WatchAppContainer-main > div.HeaderContainer > div.HeaderContainer-topArea > div.HeaderContainer-topAreaLeft > p > a").onclick = onclick;
+    document.querySelector(VideoTitleElement + " > p > a").onclick = onclick;
 }
-async function DLstartOnclick(TSURLs, video_sm, video_name) {
+async function DLstartOnclick(TSURLs, video_sm, video_name, fps) {
     documentWriteText("処理中……");
-    await DownEncoder(TSURLs, video_sm, video_name);
+    await DownEncoder(TSURLs, video_sm, video_name, fps);
 
+}
+
+function VideoNameMake(video_sm, video_title, kakuchoushi = ".mp4") {
+    let video_name = "";
+    const video_name_value = setOption("video_downloading");
+
+    //video_name
+    if (video_name_value !== "1" &&
+        video_name_value !== "2" &&
+        video_name_value !== "3") {
+
+        video_name = video_name + video_sm;
+    } else if (video_name_value === "1") {
+        video_name = video_name + video_title;
+    } else if (video_name_value === "2") {
+        video_name = video_name + video_sm;
+        video_name = video_name + "_";
+        video_name = video_name + video_title;
+    } else if (video_name_value === "3") {
+        video_name = video_name + video_title;
+        video_name = video_name + "_";
+        video_name = video_name + video_sm;
+    }
+    video_name = video_name + kakuchoushi;
+    return video_name;
 }

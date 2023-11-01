@@ -28,13 +28,16 @@ const ffmpeg = (Core, args) => {
 };
 
 //const runFFmpeg = async (ifilename, data, args, ofilename, extraFiles = []) => {
-const runFFmpeg = async (Core, video_sm, ofilename) => {
+const runFFmpeg = async (Core, video_sm, ofilename, fps = '60') => {
   let resolve = null;
   const waitEnd = new Promise((r) => {
     resolve = r;
   });
   try {
     ffmpeg(Core, ['-f', 'concat', '-i', video_sm + ".txt", "-c", "copy", ofilename]);
+    //ffmpeg(Core, ['-f', 'concat', '-r', fps, '-i', video_sm + ".txt", '-r', fps, ofilename]);
+
+    //ここをcopyでやらないと変換速度がx0.1とかになる
   } catch (err) {
     DebugPrint(err);
   };
@@ -47,7 +50,7 @@ const b64ToUint8Array = (str) => (Uint8Array.from(atob(str), c => c.charCodeAt(0
 
 
 //ここから追記
-async function DownEncoder(TSURLs, video_sm, video_name, format = "mp4") {
+async function DownEncoder(TSURLs, video_sm, video_name, fps, format = "mp4") {
 
   if (last_load_sm === video_sm) return;
   last_load_sm = video_sm;//2度読み込みを防ぐ
@@ -152,7 +155,7 @@ async function DownEncoder(TSURLs, video_sm, video_name, format = "mp4") {
 
   await Promise.all(promises).then(() => {
     //await Transcode(core, video_sm);
-    Transcode(core, video_sm);
+    Transcode(core, video_sm, 'mp4', fps);
   }
   )
 
@@ -183,10 +186,10 @@ async function DownloadUint8Array(url) {
   return byte;
 }
 
-const Transcode = async function (Core, video_sm, format = "mp4") {
+const Transcode = async function (Core, video_sm, format = "mp4", fps = '60') {
   const outputvideo_name = video_sm + "." + format;
   documentWriteText("変換中……");
-  const { file } = await runFFmpeg(Core, video_sm, outputvideo_name);
+  const { file } = await runFFmpeg(Core, video_sm, outputvideo_name, fps);
   return file;
 };
 
