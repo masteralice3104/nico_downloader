@@ -17,57 +17,22 @@ function VideoDown() {
     let video_title = document.querySelector(VideoTitle).innerText;
 
     //動画sm番号の定義
-    let video_sm = ""
-    let match_sm = "0"
-    try {
-        DebugPrint("match_sm初期値 : " + match_sm)
-        match_sm = setOption("video_pattern");
-        DebugPrint("match_sm読込 : " + match_sm)
-        if (match_sm == "0") {
-            match_sm = "sm[0-9]{1,}";
-        }
-        DebugPrint("match_smｴﾗｰ処理 : " + match_sm)
-    } catch (error) {
-        match_sm = "sm[0-9]{1,}";
-        DebugPrint("ndl:er " + error)
-    }
-    if (location.href.match(match_sm)) {
-        video_sm = location.href.match(match_sm).toString();
-        DebugPrint("location.href.match match_sm true")
-        DebugPrint("match_sm : " + match_sm)
-    } else {
-        DebugPrint("location.href.match match_sm false")
-        DebugPrint("match_sm : " + match_sm)
-        DebugPrint("setOption(\"video_pattern\") : " + setOption("video_pattern"))
-        return;
-    }
+    const match_sm = match_sm_Get();
+    const video_sm = video_sm_Get(match_sm);
 
     //デフォルト動画ファイル名の定義
     const video_name = VideoNameMake(video_sm, video_title);
 
-    if (video_link_smid !== video_sm && video_link_smid !== "-1") {
-        DebugPrint("video_link_smidリセット")
-        DebugPrint("video_link_smid : " + video_link_smid)
-        DebugPrint("video_sm : " + video_sm)
-        //video_link_smidが現在のものと同じじゃないならすでに読み込んだ形跡があるので一回消す
-        video_link_smid = "-1";
-        document.querySelector(VideoTitleElement + " > p").remove();
+    //すでに作ったリンクがあるかどうか判別し、あれば削除
+    VideoTitleElement_Check(video_link_smid, video_sm);
 
-    }
+
+
     //ダウンロードリンクの表示
     if (video_link_smid === "-1") {
 
-        DebugPrint("DL link make");
-        //まずリンクの作成
-        let p_link = document.createElement("p");
-        p_link.id = "DLlink";
-        let a_link = document.createElement("a");
-        a_link.innerText = "処理中";
-
-        if (!document.getElementById(p_link.id)) {
-            document.querySelector(VideoTitleElement).appendChild(p_link);
-            document.querySelector(VideoTitleElement + " > p").appendChild(a_link);
-        }
+        //リンクをとりあえず作成
+        VideoTitleElement_FirstMake();
 
 
         DebugPrint("DL start");
@@ -332,4 +297,63 @@ function VideoNameMake(video_sm, video_title, kakuchoushi = ".mp4") {
     }
     video_name = video_name + kakuchoushi;
     return video_name;
+}
+
+
+function match_sm_Get() {
+    let match_sm = '0';
+    try {
+        DebugPrint("match_sm初期値 : " + match_sm)
+        match_sm = setOption("video_pattern");
+        DebugPrint("match_sm読込 : " + match_sm)
+        if (match_sm == "0") {
+            match_sm = "sm[0-9]{1,}";
+        }
+        DebugPrint("match_smｴﾗｰ処理 : " + match_sm)
+    } catch (error) {
+        match_sm = "sm[0-9]{1,}";
+        DebugPrint("ndl:er " + error)
+    }
+    return match_sm;
+}
+function video_sm_Get(match_sm) {
+    let video_sm = '';
+    if (location.href.match(match_sm)) {
+        video_sm = location.href.match(match_sm).toString();
+        DebugPrint("location.href.match match_sm true")
+        DebugPrint("match_sm : " + match_sm)
+    } else {
+        DebugPrint("location.href.match match_sm false")
+        DebugPrint("match_sm : " + match_sm)
+        DebugPrint("setOption(\"video_pattern\") : " + setOption("video_pattern"))
+    }
+    return video_sm;
+}
+
+function VideoTitleElement_Check(video_link_smid, video_sm) {
+    //この関数はすでに作ったリンクがあるかどうかを判別する
+    if (video_link_smid !== video_sm && video_link_smid !== "-1") {
+        DebugPrint("video_link_smidリセット")
+        DebugPrint("video_link_smid : " + video_link_smid)
+        DebugPrint("video_sm : " + video_sm)
+        //video_link_smidが現在のものと同じじゃないならすでに読み込んだ形跡があるので一回消す
+        video_link_smid = "-1";
+        document.querySelector(VideoTitleElement + " > p").remove();
+
+    }
+}
+
+function VideoTitleElement_FirstMake() {
+    DebugPrint("DL link make");
+    //まずリンクの作成
+    let p_link = document.createElement("p");
+    p_link.id = "DLlink";
+    let a_link = document.createElement("a");
+    a_link.innerText = "処理中";
+
+    if (!document.getElementById(p_link.id)) {
+        document.querySelector(VideoTitleElement).appendChild(p_link);
+        document.querySelector(VideoTitleElement + " > p").appendChild(a_link);
+    }
+
 }
