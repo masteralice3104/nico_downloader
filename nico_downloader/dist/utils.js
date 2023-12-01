@@ -35,7 +35,30 @@ const runFFmpeg = async (Core, video_sm, ofilename, fps = '60') => {
   });
   try {
     ffmpeg(Core, ['-f', 'concat', '-i', video_sm + ".txt", "-c", "copy", ofilename]);
-    //ffmpeg(Core, ['-f', 'concat', '-r', fps, '-i', video_sm + ".txt", '-r', fps, ofilename]);
+    //ffmpeg(Core, ['-f', 'concat', '-r', fps, '-i', video_sm + ".txt", '-r', fps, ofilename]);//可変FPSなのでfps入れるとおかしくなる
+
+
+    //m3u8入れるとこれ？
+    //ffmpeg(Core, ['-i', video_sm + ".m3u8", "-c", "copy", ofilename]);
+
+    //ここをcopyでやらないと変換速度がx0.1とかになる
+  } catch (err) {
+    DebugPrint(err);
+  };
+  await waitEnd;
+  DebugPrint("waitEnd");
+
+};
+
+const runFFmpeg_m3u8 = async (Core, video_sm, ofilename) => {
+  let resolve = null;
+  const waitEnd = new Promise((r) => {
+    resolve = r;
+  });
+  try {
+
+    //m3u8入れるとこれ？
+    ffmpeg(Core, ['-i', video_sm + ".m3u8", "-c", "copy", ofilename]);
 
     //ここをcopyでやらないと変換速度がx0.1とかになる
   } catch (err) {
