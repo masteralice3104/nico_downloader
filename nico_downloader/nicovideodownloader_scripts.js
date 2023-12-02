@@ -41,7 +41,8 @@ async function VideoDown() {
 
         //videoが読み込めてなかったら出る
         if (document.querySelector("#MainVideoPlayer > video").getAttribute('src') == null) {
-            return;
+            VideoTitleElement_Write('MainVideoPlayerが読み込めません');
+            return false;
         }
 
         //一時的に変える
@@ -60,7 +61,7 @@ async function VideoDown() {
 
 
 
-
+        //DebugPrint("masterURL:" + masterURL);
         const masterURL = SystemMessageContainer_masterURLGet();
         if (masterURL == null) return false;
 
@@ -73,21 +74,43 @@ async function VideoDown() {
 
 
         //dmc.nicoの処理はこちら！
-        if (masterURL.indexOf('dmc.nico/hlsvod/ht2_nicovideo/')) {
-
+        if (masterURL.indexOf('dmc.nico/hlsvod/ht2_nicovideo/') != -1) {
+            VideoTitleElement_Write(video_name + "を保存")
             MovieDownload_dmcnico(masterURL, video_sm, video_name);
-
+            video_link_smid = video_sm;
         }
         //delivery.domand.nicovideo.jpの処理はこちら！
-        if (masterURL.indexOf('delivery.domand.nicovideo.jp')) {
-            DebugPrint("delivery.domand.nicovideo.jp");
-            MovieDownload_domand(masterURL, video_sm, video_name);
+        if (masterURL.indexOf('delivery.domand.nicovideo.jp') != -1) {
+            VideoTitleElement_Write(video_name + "を保存")
+            onclickDL(video_sm, video_name);
+            video_link_smid = video_sm;
         }
-
-
     }
     return true;
 };
+
+async function onclickDL(video_sm, video_name) {
+
+
+    if (downloading) return false;
+    downloading = true;
+    const domand_m3u8 = (await GetMovieApi(video_sm)).data.contentUrl;
+    DebugPrint(domand_m3u8);
+
+    const return_domand = MovieDownload_domand(domand_m3u8, video_sm, video_name);
+    if (return_domand == -1) {
+        VideoTitleElement_Write('APIエラーの為保存失敗:domand-master-api')
+        return false;
+    }
+    downloading = false;
+
+
+    return true;
+}
+
+
+
+
 
 let interval1st = false;
 let intervalId;
@@ -124,9 +147,14 @@ function documentWriteText(URItext) {
 function documentWriteOnclick(onclick) {
     document.getElementById(VideoData.Video_DLlink.a).onclick = onclick;
 }
-async function DLstartOnclick(TSURLs, video_sm, video_name, fps) {
+//async function DLstartOnclick(TSURLs, video_sm, video_name, fps) {
+//    documentWriteText("処理中……");
+//    await DownEncoder(TSURLs, video_sm, video_name, fps);
+//
+//}
+function DLstartOnclick(TSURLs, TSFilenames, m3u8s, video_sm, video_name) {
     documentWriteText("処理中……");
-    await DownEncoder(TSURLs, video_sm, video_name, fps);
+    DownEncoder(TSURLs, TSFilenames, m3u8s, video_sm, video_name);
 
 }
 
@@ -236,10 +264,14 @@ function VideoTitleElement_ERRORcheck(video_name) {
 
     //エラー文を用意する
     const add_error = VideoTitleElement_ERROR(video_name, hlssavemode);
-    document.getElementById(VideoData.Video_DLlink.a).innerHTML = add_error;
+    VideoTitleElement_Write(add_error);
 
 }
+function VideoTitleElement_Write(txt) {
 
+    document.getElementById(VideoData.Video_DLlink.a).innerHTML = txt;
+
+}
 function SystemMessageContainer_masterURLGet() {
     //メッセージより読み込み
     let rawMessage;
@@ -261,124 +293,52 @@ function SystemMessageContainer_masterURLGet() {
 
     return masterURL;
 }
-function MovieDownload_dmcnico(masterURL, video_sm, video_name) {
-
-    //ダウンロード中フラグ立てる
+async function MovieDownload_domand(Firstm3u8URL, video_sm, video_name,) {
+    //ダウンロード中をセット
     downloading = true;
+    const Firstm3u8_body = await TextDownload_withCookie(Firstm3u8URL);
+    DebugPrint(Firstm3u8_body);
 
-    const xhr_master = new XMLHttpRequest();//XMLHttpRequest
-    let masterRawMessage, playlistURL
+    const Firstm3u8_body_json = m3u8_Parse(Firstm3u8_body);
 
-    xhr_master.open('GET', masterURL);      //GETを作る
-    xhr_master.send();                      //リクエストを投げる
-    xhr_master.onreadystatechange = function () {
-        if (xhr_master.readyState === 4 && xhr_master.status === 200) {
+    console.log(Firstm3u8_body_json)
+    const audio_m3u8_URL = Firstm3u8_body_json["EXT-X-MEDIA"][0]['URI'];
+    const video_m3u8_URL = Firstm3u8_body_json["EXT-X-STREAM-INF"][0]['URI'];
 
-            if (video_link_smid == video_sm) {
-                return false;
-            }
-            //ここで一回止める
-            //読み込み形跡を残す
-            video_link_smid = video_sm;
-            DebugPrint("smid上書き");
+    const audio_m3u8_body = await TextDownload_withCookie(audio_m3u8_URL);
+    const video_m3u8_body = await TextDownload_withCookie(video_m3u8_URL);
+    const audio_m3u8_body_json = m3u8_Parse(audio_m3u8_body);
+    const video_m3u8_body_json = m3u8_Parse(video_m3u8_body);
 
-            //取得完了したらここに飛ぶ
-            masterRawMessage = this.responseText;
+    DebugPrint('audio:' + audio_m3u8_URL);
+    DebugPrint('video:' + video_m3u8_URL);
 
-            //文字列を行ごとに分解する
-            let masterURLGyou = masterRawMessage.split(/\r\n|\n/);
-            //3行目は常に高画質っぽいのでそれだけ抽出
-            playlistURL = String(masterURL.match(/(https.).*(master.m3u8?.)/g)).replace('master.m3u8?', '') + masterURLGyou[2];
-            DebugPrint("playlistURL: " + playlistURL);
+    let replace_audio = replaceURL(audio_m3u8_body)
+    let replace_video = replaceURL(video_m3u8_body)
+    let replace_Firstm3u8 = replaceURL(Firstm3u8_body)
 
-
-            //playlistURLにはダウンロードすべきm3u8のURLが入ってるのでそれをダウンロード
-            const xhr_playlist = new XMLHttpRequest();
-            xhr_playlist.open('GET', playlistURL);
-            xhr_playlist.send();
-            xhr_playlist.onreadystatechange = function () {
-                if (xhr_master.readyState === 4 && xhr_master.status === 200) {
-                    //取得完了したらここに飛ぶ
-                    let playlistRawMessage = this.responseText;
+    let m3u8s = [replace_audio, replace_video, replace_Firstm3u8,
+        makeFilename(audio_m3u8_URL), makeFilename(video_m3u8_URL), makeFilename(Firstm3u8URL)];
+    let TSURLs = makeTSURLs(video_m3u8_body_json, audio_m3u8_body_json);
 
 
-
-                    //https://stabucky.com/wp/archives/10419
-                    playlistRawMessage = playlistRawMessage.trim();
-                    playlistRawMessage = playlistRawMessage.replace(/(\r?\n)+/g, "\n");
-
-                    const playlistMessage = playlistRawMessage.split(/\r\n|\n/);
-                    DebugPrint(playlistMessage);
+    let TSFilenames = makeTSFilenames(TSURLs);
 
 
-                    //神 of GOD
-                    //https://github.com/naari3/nico-downloader-ffmpeg/blob/main/src/background.ts
-                    //ご協力感謝します
-
-                    // playlistのアイテムを全部読み込む
-
-                    //読み込んだTSファイルの置き場所配列
-                    let TSURLs = [];
-                    let fps = 60;
-
-                    for (let i = 0; i < playlistMessage.length; i++) {
-                        let element = playlistMessage[i];
-                        if (element.match(/#/)) {
-                            //#が入ってる行は飛ばす
-
-                            if (element.match(/FRAME-RATE=([\d.]+)/)) {
-                                fps = element.match(/FRAME-RATE=([\d.]+)/);
-                            }
-
-                        } else if (element == "") {
-                            //空行は飛ばす
-                        } else {
-                            //TSURLの取得
-                            const TSURL = String(playlistURL.match(/(https.).*(playlist.m3u8?.)/g)).replace('playlist.m3u8?', '') + element;
-                            TSURLs.push(TSURL);
-                        }
-
-                        if (element.match(/ENDLIST/)) {
-                            //ENDLISTが入ってる行まで読み込めばOK
-                            DebugPrint("TSURLs.length:" + TSURLs.length);
-                            if (TSURLs.length == 0) {
-                                return;
-                            }
-
-                            documentWriteText(video_name + "をダウンロード");
-                            documentWriteOnclick(DLstartOnclick(TSURLs, video_sm, video_name, String(fps)));
-
-                        }
-                    }
-
-                    //フラグ戻す
-                    downloading = false;
-
-                    //読み込み形跡を残す
-                    video_link_smid = video_sm;
-                    DebugPrint("smid上書き");
-
-                }
-            }
-
-
-        }
-    }
+    documentWriteText(video_name + "をダウンロード");
+    documentWriteOnclick(DLstartOnclick(TSURLs, TSFilenames, m3u8s, video_sm, video_name));
 }
-
-function MovieDownload_domand(masterURL, video_sm, video_name) {
-
-}
-
 async function GetMovieApi(video_sm) {
     //https://nvapi.nicovideo.jp/v1/watch/smXXXXXX/access-rights/hls?actionTrackId=
 
     const TrackID = genActionTrackID();
     const URL = "https://nvapi.nicovideo.jp/v1/watch/" + video_sm + "/access-rights/hls?actionTrackId=" + TrackID;
-    const threadKEY = await GetWatchthreadKey(video_sm, TrackID);
-
-
-
+    const ret = await GetWatchthreadKey_and_Moviedata(video_sm, TrackID);
+    const threadKEY = ret[0];
+    const video = ret[1].replace('archive', 'video').replaceAll('_', '-');
+    const audio = ret[2].replace('archive', 'audio').replaceAll('_', '-');
+    DebugPrint('video : ' + video);
+    DebugPrint('audio : ' + audio);
     const res = await (await fetch(URL, {
         "headers": {
             "accept": "*/*",
@@ -393,7 +353,7 @@ async function GetMovieApi(video_sm) {
         },
         "referrer": "https://www.nicovideo.jp/",
         "referrerPolicy": "strict-origin-when-cross-origin",
-        "body": "{\"outputs\":[[\"video-h264-720p\",\"audio-aac-192kbps\"]]}",
+        "body": "{\"outputs\":[[\"" + video + "\",\"" + audio + "\"]]}",
         "method": "POST",
         "mode": "cors",
         "credentials": "include"
@@ -411,7 +371,7 @@ function genActionTrackID() {
         t += e[Math.floor(Math.random() * e.length)];
     return t + "_" + Date.now()
 }
-async function GetWatchthreadKey(smid, trackID) {
+async function GetWatchthreadKey_and_Moviedata(smid, trackID) {
     const URL = 'https://www.nicovideo.jp/api/watch/v3/' + smid + '?_clientOsType=android&_frontendId=3&_frontendVersion=0.1.0&actionTrackId=' + trackID + '&kips=harmful&isContinueWatching=true&i18nLanguage=ja-jp';
     // dataExist  data.media.domand.accessRightKey
 
@@ -435,8 +395,201 @@ async function GetWatchthreadKey(smid, trackID) {
     })).json();
 
     const key = dataJSON.data.media.domand.accessRightKey;
+    const video = dataJSON.data.media.delivery.movie.videos[0].id;
+    const audio = dataJSON.data.media.delivery.movie.audios[0].id;
     DebugPrint('threadKey : ' + key);
-    return key;
+
+    const ret = [key, video, audio];
+    return ret;
 }
 
 
+function m3u8_Parse(dataText) {
+    //""の間に,が来るとそこで止まるが仕方ないということにしておきます
+    //どうせそれでてくるやつ使わないので
+
+
+    DebugPrint(dataText);
+    //行毎に分ける
+    const Datas = dataText.split(/\n/);
+
+    //json
+    let jsondata = {};
+
+    //m3u8じゃなかったらパースができないので出る
+    if (Datas[0] != '#EXTM3U') {
+        return null;//ERROR
+    }
+
+    for (let i = 1; i < Datas.length; i++) {
+        if (Datas[i].startsWith('#EXT-X-ENDLIST')) {
+            //正常終了
+            break;
+        }
+        if (Datas[i] == '' && i == Datas.length - 1) {
+            //正常終了
+            break;
+        }
+        if (Datas[i].indexOf(':') == -1) {
+            continue;
+        }
+        if (Datas[i].startsWith('https') || Datas[i].indexOf('1/ts/') != -1 || Datas[i].indexOf('.ts?ht2_nicovideo') != -1) {
+            //URL行はいったん無視する
+        } else {
+            let tempData = Datas[i];
+            const Datakey_match = Datas[i].match(/#[A-Z-]+:/);
+
+            const Datakey = Datakey_match[0].replace('#', '').replace(':', '');
+            tempData = tempData.replace(Datakey_match, '')
+
+            if (!jsondata[Datakey]) {
+                //空配列作成
+                jsondata[Datakey] = [];
+            }
+
+
+
+            if (tempData.indexOf(',') == -1 && tempData.indexOf('=') == -1) {
+                jsondata[Datakey].push(tempData);
+            } else {
+                if (tempData.slice(0, 10).match(/[0-9].[0-9]{1,},/)) {
+                    let temp = { sec: tempData.match(/[0-9].[0-9]{1,},/) };
+                    jsondata[Datakey].push(temp);
+
+                } else {
+                    let tempjson = {};
+                    DebugPrint(tempData);
+                    let temp = tempData.match(/[\w]+=[\"]?[\w:/.\-\?\=~& ]+[\"]?/g);
+
+                    for (let e = 0; e < temp.length; e++) {
+                        const key_match = temp[e].match(/[\w-]+=/);
+                        const key = key_match.toString().replace('=', '');
+                        let value = temp[e].replace(key_match, '').replaceAll('"', '').replaceAll('\\', '');
+                        tempjson[key] = value;
+                    }
+
+                    jsondata[Datakey].push(tempjson);
+
+                }
+            }
+            if (Datas[i + 1].startsWith('https') || Datas[i + 1].indexOf('1/ts/') != -1 || Datas[i + 1].indexOf('.ts?ht2_nicovideo') != -1) {
+                DebugPrint(Datas[i + 1]);
+                const latest = jsondata[Datakey].length - 1;
+                jsondata[Datakey][latest]['URI'] = Datas[i + 1];
+            }
+
+        }
+    }
+
+    return jsondata;
+
+
+}
+
+function makeFilename(URL) {
+
+    let ret = '';
+    DebugPrint('URL:' + URL);
+    if (URL.startsWith('https')) {
+        ret = URL.match(/\/[\w-.]+\?/).toString().replace('/', '').replace('?', '');
+    } else {
+        ret = URL.match(/[\w-.]+\?/).toString().replace('/', '').replace('?', '');
+    }
+    DebugPrint('makeFilename: ' + ret + ' ' + URL);
+    return ret;
+}
+function makeTSURLs(audio_m3u8_body_json, video_m3u8_body_json) {
+    let TSURLs = [];
+    //URIキーをすべてTSURLsにいれる
+    TSURLs.push(audio_m3u8_body_json['EXT-X-MAP'][0]['URI']);
+    TSURLs.push(audio_m3u8_body_json['EXT-X-KEY'][0]['URI']);
+    for (let i = 0; i < audio_m3u8_body_json['EXTINF'].length; i++) {
+        TSURLs.push(audio_m3u8_body_json['EXTINF'][i]['URI']);
+    }
+    TSURLs.push(video_m3u8_body_json['EXT-X-MAP'][0]['URI']);
+    TSURLs.push(video_m3u8_body_json['EXT-X-KEY'][0]['URI']);
+    for (let i = 0; i < video_m3u8_body_json['EXTINF'].length; i++) {
+        TSURLs.push(video_m3u8_body_json['EXTINF'][i]['URI']);
+    }
+    return TSURLs;
+}
+function makeTSURLs_dmcnicovideo(video_m3u8_body_json) {
+    let TSURLs = [];
+    for (let i = 0; i < video_m3u8_body_json['EXTINF'].length; i++) {
+        TSURLs.push(video_m3u8_body_json['EXTINF'][i]['URI']);
+    }
+    return TSURLs;
+}
+/*
+function makeTSURLs_dmcnicovideo(video_m3u8_body_json) {
+    let TSURLs = [];
+    for (let i = 0; i < video_m3u8_body_json['EXTINF'].length; i++) {
+        TSURLs.push(video_m3u8_body_json['EXTINF'][i]['URI']);
+    }
+    return TSURLs;
+}
+ */
+function makeTSFilenames(TSURLs) {
+
+
+    let TSFilenames = [];
+    //TSURLsのファイル名をすべて出す
+    for (let i = 0; i < TSURLs.length; i++) {
+        const fname = makeFilename(TSURLs[i]);
+        TSFilenames.push(fname);
+    }
+    return TSFilenames;
+}
+
+
+async function MovieDownload_dmcnico(masterURL, video_sm, video_name) {
+
+    //ダウンロード中フラグ立てる
+    downloading = true;
+
+    const Firstm3u8_body = await TextDownload_withCookie(masterURL);
+    DebugPrint(Firstm3u8_body);
+    const Firstm3u8_body_json = m3u8_Parse(Firstm3u8_body);
+
+
+    const video_m3u8_URL = masterm3u8_addURL(Firstm3u8_body_json["EXT-X-STREAM-INF"][0]['URI'], masterURL);
+    const video_m3u8_body = await TextDownload_withCookie(video_m3u8_URL);
+    const video_m3u8_body_json = m3u8_Parse(video_m3u8_body);
+
+
+    let TSURLs = makeTSURLs_dmcnicovideo(video_m3u8_body_json);
+    for (let i = 0; i < TSURLs.length; i++) {
+        TSURLs[i] = playlistm3u8_addURL(TSURLs[i], video_m3u8_URL);
+    }
+
+
+    let TSFilenames = makeTSFilenames(TSURLs)
+
+    let replace_video = video_m3u8_body.replace(/[?][\w=\-&_.~]+/g, '').replace('1/ts/', '');
+    let replace_Firstm3u8 = Firstm3u8_body.replace(/[?][\w=\-&_.~]+/g, '').replace('1/ts/', '');;
+    let m3u8s = [replace_video, replace_Firstm3u8,
+        makeFilename(video_m3u8_URL).replace('1/ts/', ''), makeFilename(masterURL)];
+
+
+
+    DebugPrint(String(TSURLs))
+    documentWriteText(video_name + "をダウンロード");
+    documentWriteOnclick(DLstartOnclick(TSURLs, TSFilenames, m3u8s, video_sm, video_name));
+
+
+
+}
+function replaceURL(url) {
+    let temp = url.replace(/https:\/\/[\w\.\/-]+[\/]{1}/g, '');
+    temp = temp.replace(/[?][\w=\-&_~]+/g, '');
+
+    return temp;
+}
+function masterm3u8_addURL(url, urldir) {
+
+    return String(urldir.match(/(https.).*(master.m3u8?.)/g)).replace('master.m3u8?', '') + url;
+}
+function playlistm3u8_addURL(url, urldir) {
+
+    return String(urldir.match(/(https.).*(playlist.m3u8?.)/g)).replace('playlist.m3u8?', '') + url;
+}

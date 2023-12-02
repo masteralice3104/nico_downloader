@@ -28,7 +28,7 @@ const ffmpeg = (Core, args) => {
 };
 
 //const runFFmpeg = async (ifilename, data, args, ofilename, extraFiles = []) => {
-const runFFmpeg = async (Core, video_sm, ofilename, fps = '60') => {
+const runFFmpeg = async (Core, video_sm, ofilename) => {
   let resolve = null;
   const waitEnd = new Promise((r) => {
     resolve = r;
@@ -50,7 +50,7 @@ const runFFmpeg = async (Core, video_sm, ofilename, fps = '60') => {
 
 };
 
-const runFFmpeg_m3u8 = async (Core, video_sm, ofilename) => {
+const runFFmpeg_m3u8 = async (Core, m3u8name, ofilename) => {
   let resolve = null;
   const waitEnd = new Promise((r) => {
     resolve = r;
@@ -58,7 +58,7 @@ const runFFmpeg_m3u8 = async (Core, video_sm, ofilename) => {
   try {
 
     //m3u8入れるとこれ？
-    ffmpeg(Core, ['-i', video_sm + ".m3u8", "-c", "copy", ofilename]);
+    ffmpeg(Core, ['-allowed_extensions', 'ALL', '-i', m3u8name, "-c", "copy", ofilename]);
 
     //ここをcopyでやらないと変換速度がx0.1とかになる
   } catch (err) {
@@ -73,15 +73,17 @@ const b64ToUint8Array = (str) => (Uint8Array.from(atob(str), c => c.charCodeAt(0
 
 
 //ここから追記
-async function DownEncoder(TSURLs, video_sm, video_name, fps, format = "mp4") {
+async function DownEncoder(TSURLs, TSFilenames, m3u8s, video_sm, video_name, format = "mp4") {
 
   if (last_load_sm === video_sm) return;
   last_load_sm = video_sm;//2度読み込みを防ぐ
   faults = 0;//失敗数を記録
   load_percentage = 0;//読み込みパーセント
 
-  //https://github.com/naari3/nico-downloader-ffmpeg/blob/main/src/background.ts
-  //偉大なる@_naari_氏による協力に感謝いたします
+
+
+
+  //https://github.com/naari3/nico-downloader-ffmpeg/blob/main/src/background.ts  //偉大なる@_naari_氏による協力に感謝いたします
   let resolve = null;
   let file = null;
   const core = await createFFmpegCore({
@@ -92,7 +94,7 @@ async function DownEncoder(TSURLs, video_sm, video_name, fps, format = "mp4") {
         DebugPrint("FFMPEG_END 変換終了");
         if (last_save_sm !== video_sm) {
 
-          const ofilename = video_sm + ".mp4";
+          const ofilename = video_sm + "." + format;
           file = core.FS.readFile(ofilename);
           console.log({ file });
           core.FS.unlink(ofilename);
@@ -137,7 +139,7 @@ async function DownEncoder(TSURLs, video_sm, video_name, fps, format = "mp4") {
         .then(byte => {
           let filenumber = i + 1;
 
-          let filename = video_sm + "-" + filenumber + ".ts";
+          let filename = TSFilenames[i];
           core.FS.writeFile(filename, byte);
           DebugPrint("FSwrite:" + filename);
 
@@ -166,19 +168,28 @@ async function DownEncoder(TSURLs, video_sm, video_name, fps, format = "mp4") {
       await Promise.all(promises);
     }
   }
-  for (let i = 0; i < TSURLs.length; i++) {
-    const filenumber = i + 1;
-    const filename = video_sm + "-" + filenumber + ".ts";
-    Fstext += "file '" + filename + "'\n";
-  }
-  const textname = video_sm + ".txt";
-  core.FS.writeFile(textname, new TextEncoder().encode(Fstext));
+
+
+
 
   //Transcodeする
 
   await Promise.all(promises).then(() => {
+
+    //間違ってURLを読みに行くのでm3u8を3つ書き換える
+    //m3u8末尾の3個
+    const m3u8s_num = m3u8s.length / 2;
+    for (let i = 0; i < m3u8s_num; i++) {
+      DebugPrint(m3u8s[m3u8s_num + i] + ' -> ' + new TextEncoder().encode(m3u8s[i]))
+      core.FS.writeFile(m3u8s[m3u8s_num + i], new TextEncoder().encode(m3u8s[i]));
+    }
+
+    const m3u8name = m3u8s[m3u8s.length - 1];
+
+
+
     //await Transcode(core, video_sm);
-    Transcode(core, video_sm, 'mp4', fps);
+    Transcode(core, video_sm, m3u8name, 'mp4');
   }
   )
 
@@ -187,13 +198,13 @@ async function DownEncoder(TSURLs, video_sm, video_name, fps, format = "mp4") {
 }
 async function Downloadblob(url) {
 
-  if (!url.match(/ts/)) {
-    return null;
-  }
+  //if (!url.match(/ts/)) {
+  //  return null;
+  //}
 
   //TSの取得
-  let res = await fetch_retry(url, { method: 'GET' }, 100);
-
+  //let res = await fetch_retry(url, { method: 'GET' }, 100);
+  let res = await fetch_retry(url, { credentials: 'include' }, 100);
 
   let blob = res.blob();
   DebugPrint("BLOBgetEnd:" + url);
@@ -209,10 +220,11 @@ async function DownloadUint8Array(url) {
   return byte;
 }
 
-const Transcode = async function (Core, video_sm, format = "mp4", fps = '60') {
+const Transcode = async function (Core, video_sm, m3u8name, format = "mp4") {
   const outputvideo_name = video_sm + "." + format;
   documentWriteText("変換中……");
-  const { file } = await runFFmpeg(Core, video_sm, outputvideo_name, fps);
+  //const { file } = await runFFmpeg(Core, video_sm, outputvideo_name, fps);
+  const { file } = await runFFmpeg_m3u8(Core, m3u8name, outputvideo_name);
   return file;
 };
 
@@ -245,4 +257,26 @@ function sleep(waitMsec) {
 
   // 指定ミリ秒間だけループさせる（CPUは常にビジー状態）
   while (new Date() - startMsec < waitMsec);
+}
+
+
+async function TextDownload_withCookie(URL) {
+  return await fetch(URL, { credentials: 'include' })
+    .then((response) => {
+      if (response.status !== 200) {
+        DebugPrint("Error downloading :" + URL);
+        return -1;
+      }
+      return response.text();
+    });
+}
+async function ArrayDownload_withCookie(URL) {
+  return await fetch(URL, { credentials: 'include' })
+    .then((response) => {
+      if (response.status !== 200) {
+        DebugPrint("Error downloading :" + URL);
+        return -1;
+      }
+      return response.arrayBuffer();
+    });
 }
