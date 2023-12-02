@@ -4,3 +4,4 @@
 //https://asset.domand.nicovideo.jp/XXXXXXXXXXXXXXXXXX/video/1/video-h264-720p/を削除
 //https://delivery.domand.nicovideo.jp/hls/XXXXXXXXXXXXXXXXX/keys/を削除
 //あとは全部ローカルに保存して結合すると映像のみができあがる
+

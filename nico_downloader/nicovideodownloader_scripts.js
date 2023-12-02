@@ -97,8 +97,25 @@ async function onclickDL(video_sm, video_name) {
 
     if (downloading) return false;
     downloading = true;
-    const domand_m3u8 = (await GetMovieApi(video_sm)).data.contentUrl;
-    DebugPrint(domand_m3u8);
+    let domand_m3u8;
+    try {
+        //domand_m3u8 = (await GetMovieApi(video_sm)).data.contentUrl;
+        //DebugPrint(domand_m3u8);
+        throw new Error('domand api error')
+
+    } catch (e) {
+
+        try {
+            if (SystemMessageContainer_masterURLGet() != false) {
+                domand_m3u8 = SystemMessageContainer_masterURLGet();
+            } else {
+                throw new Error('システムメッセージからの取得失敗');
+            }
+        } catch (e) {
+            VideoTitleElement_Write('保存失敗:domand-master-api')
+            return false;
+        }
+    }
 
     const return_domand = MovieDownload_domand(domand_m3u8, video_sm, video_name);
     if (return_domand == -1) {
@@ -347,6 +364,9 @@ async function GetMovieApi(video_sm) {
             "accept": "*/*",
             "accept-language": "ja-JP,ja;q=0.9",
             "content-type": "application/json",
+            "sec-ch-ua": "\"Not A(Brand\";v=\"99\", \"Google Chrome\";v=\"121\", \"Chromium\";v=\"121\"",
+            "sec-ch-ua-mobile": "?0",
+            "sec-ch-ua-platform": "\"Windows\"",
             "sec-fetch-dest": "empty",
             "sec-fetch-mode": "cors",
             "sec-fetch-site": "same-site",
@@ -363,8 +383,6 @@ async function GetMovieApi(video_sm) {
     })).json();
 
 
-
-
     console.log(res)
     return res;
 }
@@ -378,13 +396,16 @@ async function GetWatchthreadKey_and_Moviedata(smid, trackID) {
     const URL = 'https://www.nicovideo.jp/api/watch/v3/' + smid + '?_clientOsType=android&_frontendId=3&_frontendVersion=0.1.0&actionTrackId=' + trackID + '&kips=harmful&isContinueWatching=true&i18nLanguage=ja-jp';
     // dataExist  data.media.domand.accessRightKey
 
+
+
+
     const dataJSON = await (await fetch(URL, {
         "headers": {
             "accept": "*/*",
             "accept-language": "ja-JP,ja;q=0.9",
             "sec-ch-ua": "\"Google Chrome\";v=\"119\", \"Chromium\";v=\"119\", \"Not?A_Brand\";v=\"24\"",
             "sec-ch-ua-mobile": "?1",
-            "sec-ch-ua-platform": "\"Android\"",
+            "sec-ch-ua-platform": "\"Windows\"",
             "sec-fetch-dest": "empty",
             "sec-fetch-mode": "cors",
             "sec-fetch-site": "same-site"
@@ -398,8 +419,22 @@ async function GetWatchthreadKey_and_Moviedata(smid, trackID) {
     })).json();
 
     const key = dataJSON.data.media.domand.accessRightKey;
-    const video = dataJSON.data.media.delivery.movie.videos[0].id;
-    const audio = dataJSON.data.media.delivery.movie.audios[0].id;
+
+    let video, audio
+    for (let i = 0; i < dataJSON.data.media.delivery.movie.videos.length; i++) {
+        //if (dataJSON.data.media.delivery.movie.videos[i].isAvailable == true) {
+        video = dataJSON.data.media.delivery.movie.videos[i].id;
+        break;
+        // }
+    }
+    for (let i = 0; i < dataJSON.data.media.delivery.movie.audios.length; i++) {
+        //if (dataJSON.data.media.delivery.movie.audios[i].isAvailable == true) {
+        audio = dataJSON.data.media.delivery.movie.audios[i].id;
+        break;
+        //}
+    }
+
+    //dataJSON.data.media.delivery.movie.audios[0].id;
     DebugPrint('threadKey : ' + key);
 
     const ret = [key, video, audio];
