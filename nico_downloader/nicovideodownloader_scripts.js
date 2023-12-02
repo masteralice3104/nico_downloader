@@ -23,6 +23,9 @@ async function VideoDown() {
     //動画sm番号の定義
     const match_sm = match_sm_Get();
     const video_sm = video_sm_Get(match_sm);
+    if (video_sm == '') {
+        return false;
+    }
 
     //デフォルト動画ファイル名の定義
     const video_name = VideoNameMake(video_sm, video_title);
