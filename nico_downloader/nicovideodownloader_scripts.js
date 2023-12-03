@@ -57,6 +57,11 @@ async function VideoDown() {
             return false;
         }
 
+        //初期設定してなかったら止める
+        if( document.getElementById(VideoData.Video_DLlink.a).innerHTML.indexOf('◆◆◆◆nico downloaderの初期設定を行ってください◆◆◆◆')!=-1){
+            return false;
+        }
+
 
         ////////////////////////////////////////////////////////////////
         // ここから実行部分
@@ -266,6 +271,7 @@ function VideoTitleElement_FirstMake() {
 
 function VideoTitleElement_ERROR(video_name, hlssavemode = '1') {
     let add_error = "<p>" + video_name + "</p><p>をダウンロードするためにはシステムメッセージを開いてください";
+
     if (hlssavemode == "0") {
         const optionURL = chrome.runtime.getURL('options.html');
         add_error = "<p>◆◆◆◆nico downloaderの初期設定を行ってください◆◆◆◆</p><p><a href=\"" + optionURL + "\">設定画面を開く</a></p>";

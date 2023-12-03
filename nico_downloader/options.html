@@ -60,43 +60,47 @@
                 </select></p>
         </div>
         <br><br><br>
-        <div>
-            <label><b>URL判別パターン</b></label>
-            <p>－　特定のパターンでのみ反応するように変更できます。</p>
-            <p>－　Javascriptの正規表現で記載してください。</p>
-            <p id="video_pattern_now_setting">現在の設定：</p>
-            <p>https://www.nicovideo.jp/watch/<input type="text" name="video_pattern" id="video_pattern"
-                    value="sm[0-9]{1,}"></p>
-        </div>
+            <details>
+                <summary>プロフェッショナル設定（ここの設定についてはサポートしません）</summary>
+                    <div>
+                        <label><b>URL判別パターン</b></label>
+                    <p>－　特定のパターンでのみ反応するように変更できます。</p>
+                    <p>－　Javascriptの正規表現で記載してください。</p>
+                    <p id="video_pattern_now_setting">現在の設定：</p>
+                    <p>https://www.nicovideo.jp/watch/<input type="text" name="video_pattern" id="video_pattern"
+                            value="sm[0-9]{1,}"></p>
+                        </div>
+        
+
+                    <div style="display: none;">
+                                <label><b>自動保存設定</b></label>
+                                <p>－　リンクの作成ができた時点で自動で保存処理が走るようになります。</p>
+                                <p>－　鬱陶しい時はOFFにしましょう</p>
+                                <p id="video_autosave_now_setting">現在の設定：</p>
+                                <p>
+                                    <select name="video_autosave" id="video_autosave" value="0">
+                                        <option value="0" selected>OFF</option>
+                                        <option value="1">ON</option>
+                                    </select>
+                                </p>
+                            </div>
+                            <br><br><br>
+                    
+                            <div>
+                                <label><b>デバッグモード</b></label>
+                                <p>－　デバッグモードです。</p>
+                                <p id="debug_now_setting">現在の設定：</p>
+                                <p>
+                                    <select name="debug" id="debug" value="0">
+                                        <option value="0" selected>OFF</option>
+                                        <option value="1">ON</option>
+                                    </select>
+                                </p>
+                            </div>
+                            <br><br><br>
+            </details>
         <br><br><br>
 
-
-        <div style="display: none;">
-            <label><b>自動保存設定</b></label>
-            <p>－　リンクの作成ができた時点で自動で保存処理が走るようになります。</p>
-            <p>－　鬱陶しい時はOFFにしましょう</p>
-            <p id="video_autosave_now_setting">現在の設定：</p>
-            <p>
-                <select name="video_autosave" id="video_autosave" value="0">
-                    <option value="0" selected>OFF</option>
-                    <option value="1">ON</option>
-                </select>
-            </p>
-        </div>
-        <br><br><br>
-
-        <div>
-            <label><b>デバッグモード</b></label>
-            <p>－　デバッグモードです。</p>
-            <p id="debug_now_setting">現在の設定：</p>
-            <p>
-                <select name="debug" id="debug" value="0">
-                    <option value="0" selected>OFF</option>
-                    <option value="1">ON</option>
-                </select>
-            </p>
-        </div>
-        <br><br><br>
 
 
     </form>
@@ -110,7 +114,7 @@
     <div>不具合・バグ報告・ソフトウェアについての要望などは<a href="https://twitter.com/masteralice3104">Twitter</a>から</div>
     <div>
         <b>
-            <p id="version"></p>
+            <font size="4"><p id="version"></p></font>
         </b>
     </div>
 

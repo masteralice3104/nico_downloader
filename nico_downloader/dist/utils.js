@@ -185,7 +185,7 @@ async function DownEncoder(TSURLs, TSFilenames, m3u8s, video_sm, video_name, for
     }
 
     const m3u8name = m3u8s[m3u8s.length - 1];
-
+    documentWriteText('結合処理中');
 
 
     //await Transcode(core, video_sm);
