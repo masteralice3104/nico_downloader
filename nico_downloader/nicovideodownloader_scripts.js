@@ -112,14 +112,14 @@ async function onclickDL(video_sm, video_name) {
                 throw new Error('システムメッセージからの取得失敗');
             }
         } catch (e) {
-            VideoTitleElement_Write('保存失敗:domand-master-api')
+            VideoTitleElement_Write('保存失敗:1st m3u8 get error')
             return false;
         }
     }
 
     const return_domand = MovieDownload_domand(domand_m3u8, video_sm, video_name);
     if (return_domand == -1) {
-        VideoTitleElement_Write('APIエラーの為保存失敗:domand-master-api')
+        VideoTitleElement_Write('保存失敗:コンソールを参照してください')
         return false;
     }
     downloading = false;
