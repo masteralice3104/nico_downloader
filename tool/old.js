@@ -1,5 +1,5 @@
 //ここは使わなくなった古い関数の置き場
-
+/*
 function MovieDownload_dmcnico(masterURL, video_sm, video_name) {
 
     //ダウンロード中フラグ立てる
@@ -105,7 +105,7 @@ function MovieDownload_dmcnico(masterURL, video_sm, video_name) {
     }
 }
 
-/*
+
 function MovieDownload_dmcnico(masterURL, video_sm, video_name) {
 
     //ダウンロード中フラグ立てる
