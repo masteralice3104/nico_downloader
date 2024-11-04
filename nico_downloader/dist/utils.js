@@ -72,9 +72,9 @@ const runFFmpeg_m3u8 = async (
     } else if (mode === "aac") {
       outputFileName += ".aac"; // 拡張子がない場合に .aac を追加
     }
-    NicoDownloader.OutputFileNameSet(Nicovideo,outputFileName);
     DebugPrint(`Initial OutputFileNameSet: ${NicoDownloader.FSOutputFileNameGet()}`);
 
+    DebugPrint("title_str"+title_str);
     //ffmpeg実行
     ffmpeg(Core, [
       "-allowed_extensions",
@@ -106,8 +106,10 @@ const runFFmpeg_m3u8 = async (
       "-metadata",
       `album_artist=${username_str}`, // 投稿ユーザー
       ...(mode === "aac"
-        ? ["-vn", "-c:a", "copy"] // aacモードで最初のオーディオストリームを選択
-        : ["-c", "copy"]), // MP4モードでオーディオ・ビデオをコピー
+        ? ["-vn", "-c:a", "copy"]  // AACモードでオーディオのみコピー
+        : mode === "mp3"
+        ? ["-vn", "-c:a", "libmp3lame", "-b:a", "192k"]  // MP3モードでオーディオをエンコード
+        : ["-c", "copy"]),  // MP4モードでオーディオ・ビデオをコピー    
       outputFileName,
     ]);
     DebugPrint(`ffmpeg called with args: ${ffmpegArgs.join(" ")}`);
