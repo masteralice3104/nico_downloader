@@ -171,6 +171,7 @@ class NicovideoClass {
     //jsonよりタグを取得
     JsonToTags(json = this.json) {
         let tags = [];
+        if (!json.data.response.tag.items[0]) return [];
         for (let i = 0; i < json.data.response.tag.items[i].length; i++) {
             tags.push(json.data.response.tag.items[i].name);
         }
