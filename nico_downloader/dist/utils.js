@@ -355,7 +355,7 @@ async function DownloadUint8Array(url, NicoDownloader) {
 ////////////////////////////////////////////////////////////////////////
 async function Transcode(Core, m3u8name, NicoDownloader, Nicovideo) {
   NicoDownloader.ButtonTextWrite("変換中");
-  const mode = await Option_setLoading("downFile_setting"); // モードを取得
+  const mode = downFile_get(); // モードを取得
   console.log(`Current mode: ${mode}`); // モードを確認するログ
   const file = await runFFmpeg_m3u8(
     Core,
@@ -367,20 +367,16 @@ async function Transcode(Core, m3u8name, NicoDownloader, Nicovideo) {
   return file;
 }
 
-function Option_setLoading(name) {
-
-  try {
-      chrome.storage.local.get(name, function (value) {
-          //chrome.storage.localから読み出し
-          localStorage.setItem(name, value[name]);
-      })
-      //return return_val;
-      return localStorage.getItem(name);
-
-  } catch (error) {
-      return 0;
-  }
-
+function downFile_get() {
+  return new Promise((resolve, reject) => {
+      chrome.storage.local.get("downFile_setting", function (value) {
+          if (chrome.runtime.lastError) {
+              reject(chrome.runtime.lastError);
+          } else {
+              resolve(value.downFile_setting);
+          }
+      });
+  });
 }
 
 ////////////////////////////////////////////////////////////////////////
