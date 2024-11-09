@@ -24,18 +24,43 @@ window.onload = function () {
 
 function Options_view_select(name) {
     let name_func = name;
-    chrome.storage.local.get(name_func, function (value) {
-        //chrome.storage.localから読み出し
+    
+    chrome.storage.local.get(name_func, function (result) {
+        // chrome.storage.local から name_func に対応する値を取得
+        const storedValue = result[name_func];
 
-        document.getElementById(name_func).value = setOption(name_func);
-        localStorage.setItem(name_func, setOption(name_func));
+        // `optionValue` に取得した値かデフォルト値を設定
+        const optionValue = storedValue !== undefined ? storedValue : "0";
 
-        //表示書き換え
-        let nowtext = "現在の設定：" + document.getElementById(name_func).options[setOption(name_func)].innerText;
-        let rewrite = name_func + "_now_setting";
-        document.getElementById(rewrite).innerText = nowtext;
-    })
+        const selectElement = document.getElementById(name_func);
+        if (selectElement) {
+            // `optionValue`が存在するか確認して`value`を設定
+            selectElement.value = optionValue;
+            localStorage.setItem(name_func, optionValue);
+
+            // 表示書き換え
+            const optionsArray = Array.from(selectElement.options); // optionsを配列として取得
+            const selectedOption = optionsArray.find(option => option.value === optionValue);
+
+            if (selectedOption) {
+                const nowtext = "現在の設定：" + selectedOption.innerText;
+                const rewrite = name_func + "_now_setting";
+
+                const displayElement = document.getElementById(rewrite);
+                if (displayElement) {
+                    displayElement.innerText = nowtext;
+                } else {
+                    console.error(`Display element with id '${rewrite}' not found.`);
+                }
+            } else {
+                console.error(`Option with value '${optionValue}' not found in select element.`);
+            }
+        } else {
+            console.error(`Select element with id '${name_func}' not found.`);
+        }
+    });
 }
+
 
 function Options_view_input(name) {
     name_func = name;
