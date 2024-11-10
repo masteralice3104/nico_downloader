@@ -10,6 +10,7 @@ LocalStorageで保存される値について
 "debug"                 0                   1だとデバッグ出力あり
 "language_setting"      ja                  言語設定
 "downFile_setting"      mp4                 保存ファイル形式(採用)
+"audioLastCut"          OFF                 最後カット
  */
 
 
@@ -78,6 +79,7 @@ function defalt_dataWrite() {
     Option_setWriting("video_hlssave", "0");
     Option_setWriting("language_setting", "ja");
     Option_setWriting("downFile_setting", "mp4"); //mp4として
+    Option_setWriting("audioLastCut","0");
     Options_Save();
 }
 
@@ -93,6 +95,7 @@ function Options_onload() {
         LoadOption("debug");
         LoadOption("language_setting");
         LoadOption("downFile_setting");
+        LoadOption("audioLastCut");
     } catch (error) {
         Default_click();
         Options_Save();

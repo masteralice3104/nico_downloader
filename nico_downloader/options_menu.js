@@ -17,6 +17,7 @@ window.onload = function () {
             Options_view_select("debug");
             Options_view_select("language_setting");
             Options_view_select("downFile_setting");
+            Options_view_select("audioLastCut");
         }
         save_flag = false;
     }, 10);
@@ -86,6 +87,7 @@ function Options_Save() {
     Option_setWritingByID("video_hlssave"); //
     Option_setWritingByID("language_setting");
     Option_setWritingByID("downFile_setting");
+    Option_setWritingByID("audioLastCut");
 
 
     //保存日時
