@@ -95,7 +95,6 @@ function Options_onload() {
         LoadOption("debug");
         LoadOption("language_setting");
         LoadOption("downFile_setting");
-        LoadOption("audioLastCut");
     } catch (error) {
         Default_click();
         Options_Save();
