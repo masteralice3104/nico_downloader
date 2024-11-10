@@ -804,11 +804,6 @@ class NicoDownloaderClass {
     CheckVideoFormat() {
         if (this.VideoFormat == null) return false;
         if (this.VideoFormat == '') return false;
-        /*const videoFormat = chrome.storage.local.get("downFile_setting", function (value) {
-            //chrome.storage.localから読み出し
-            localStorage.setItem("downFile_setting", value["downFile_setting"]);
-        });
-        */
         return this.VideoFormat;
     }
 
