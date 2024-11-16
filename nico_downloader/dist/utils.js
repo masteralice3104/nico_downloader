@@ -107,8 +107,6 @@ const runFFmpeg_m3u8 = async (
       `album_artist=${username_str}`, // 投稿ユーザ
       ...(mode === "aac"
         ? ["-vn", "-c:a", "copy"] // aacモードで最初のオーディオストリームを選択
-        : mode === "mp3"
-        ? ["-vn", "-c:a", "libmp3lame", "-b:a", "192k"]  // MP3モードでオーディオをエンコード
         : ["-c", "copy"]), // MP4モードでオーディオ・ビデオをコピー
       outputFileName,
     ]);
@@ -217,7 +215,7 @@ async function DownEncoder(NicoDownloader, m3u8s, Nicovideo) {
 
             NicoDownloader.ButtonTextWrite("まもなく保存完了");
           } catch (e) {
-            DebugPrint("Error:FaildedToBlob\n", e);
+            console.error("Error:FaildedToBlob\n", e);
           }
         } else {
           DebugPrint("Error:既に保存済み");
@@ -356,7 +354,7 @@ async function DownloadUint8Array(url, NicoDownloader) {
 async function Transcode(Core, m3u8name, NicoDownloader, Nicovideo) {
   NicoDownloader.ButtonTextWrite("変換中");
   const mode = await Option_setLoading("downFile_setting"); // モードを取得
-  DebugPrint(`Current mode: ${mode}`); // モードを確認するログ
+  console.log(`Current mode: ${mode}`); // モードを確認するログ
   const file = await runFFmpeg_m3u8(
     Core,
     m3u8name,
