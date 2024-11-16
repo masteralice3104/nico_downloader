@@ -44,18 +44,23 @@ async function VideoDown() {
     });
     DebugPrint("video_name:" + Nicovideo.video_name);
 
-    // 非同期でdownFile_settingを取得する関数
-    function downFile_get() {
-        return new Promise((resolve, reject) => {
-            chrome.storage.local.get("downFile_setting", function (value) {
-                if (chrome.runtime.lastError) {
-                    reject(chrome.runtime.lastError);
-                } else {
-                    resolve(value.downFile_setting);
-                }
-            });
+// 非同期でdownFile_settingを取得する関数
+function downFile_get() {
+    return new Promise((resolve, reject) => {
+        chrome.storage.local.get("downFile_setting", function (value) {
+            if (chrome.runtime.lastError) {
+                reject("Failed to get downFile_setting: " + chrome.runtime.lastError.message);
+                return;
+            }
+            if (!value.downFile_setting) {
+                reject("downFile_setting is undefined or null.");
+                return;
+            }
+            resolve(value.downFile_setting);
         });
-    }
+    });
+}
+
 
     //ダウンロードリンクの表示
     if (!NicoDownloader.VideoLoadedCheck(Nicovideo.video_sm)) {
