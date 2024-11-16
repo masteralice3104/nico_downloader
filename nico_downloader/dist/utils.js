@@ -107,6 +107,8 @@ const runFFmpeg_m3u8 = async (
       `album_artist=${username_str}`, // 投稿ユーザ
       ...(mode === "aac"
         ? ["-vn", "-c:a", "copy"] // aacモードで最初のオーディオストリームを選択
+        : mode === "mp3"
+        ? ["-vn", "-c:a", "libmp3lame", "-b:a", "192k"]  // MP3モードでオーディオをエンコード
         : ["-c", "copy"]), // MP4モードでオーディオ・ビデオをコピー
       outputFileName,
     ]);
