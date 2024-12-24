@@ -365,6 +365,14 @@ async function Transcode(Core, m3u8name, NicoDownloader, Nicovideo) {
   return file;
 }
 
+////////////////////////////////////////////////////////////////////////
+/**
+ * Option_setLoading関数は、指定された名前のローカルストレージの値を読み込み、localStorageに設定します。
+ * 
+ * @param {string} name - 読み込むローカルストレージの名前
+ * @returns {string|number} - 指定された名前のローカルストレージの値。読み込みに失敗した場合は0を返します。
+ */
+////////////////////////////////////////////////////////////////////////
 function Option_setLoading(name) {
 
   try {
