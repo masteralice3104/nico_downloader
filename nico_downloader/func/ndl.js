@@ -22,7 +22,8 @@ const VideoData = {
 
     // タイトルの場所のクエリで、ボタンを追加する場所
     //Video_title_Element: 'd_flex justify_space-between items_flex-start gap_x3 w_100%',
-    Video_title_Element: 'd_flex jc_space-between ai_flex-start gap_x3 w_100%',//2024-09-06
+    //Video_title_Element: 'd_flex jc_space-between ai_flex-start gap_x3 w_100%',//2024-09-06
+    Video_title_Element: 'd_flex jc_space-between ai_flex-start gap_var(--watch-video-information-gap) w_100%',//2025-02-22
 
     //Video_title_Element: 'd_flex w_[268px] gap_base items_center',
 
