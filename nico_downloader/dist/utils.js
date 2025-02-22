@@ -190,13 +190,15 @@ async function DownEncoder(NicoDownloader, m3u8s, Nicovideo) {
 
             file = core.FS.readFile(NicoDownloader.FSOutputFileNameGet());
             console.log({ file });
-            core.FS.unlink(NicoDownloader.FSOutputFileNameGet());
 
+            //ファイルの保存処理
+            DebugPrint("ファイルの保存処理");
             //blob
             const blob = new Blob([file.buffer], {
               //MIMEタイプを設定
               type: FiletypeToMimetype(NicoDownloader.CheckVideoFormat()),
             });
+            DebugPrint("Blob作成完了");
 
             //ディスクへの保存処理
             const a = document.createElement("a");
@@ -213,6 +215,7 @@ async function DownEncoder(NicoDownloader, m3u8s, Nicovideo) {
 
             document.body.click();
 
+            core.FS.unlink(NicoDownloader.FSOutputFileNameGet());
             NicoDownloader.ButtonTextWrite("まもなく保存完了");
           } catch (e) {
             console.error("Error:FaildedToBlob\n", e);
@@ -353,7 +356,7 @@ async function DownloadUint8Array(url, NicoDownloader) {
 ////////////////////////////////////////////////////////////////////////
 async function Transcode(Core, m3u8name, NicoDownloader, Nicovideo) {
   NicoDownloader.ButtonTextWrite("変換中");
-  const mode = await Option_setLoading("downFile_setting"); // モードを取得
+  const mode = await Option_setLoading("downFile_setting") || "mp4"; // モードを取得
   console.log(`Current mode: ${mode}`); // モードを確認するログ
   const file = await runFFmpeg_m3u8(
     Core,

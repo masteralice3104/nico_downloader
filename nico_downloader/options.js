@@ -34,6 +34,10 @@ function Option_setLoading(name) {
             localStorage.setItem(name, value[name]);
         })
         //return return_val;
+
+        if (localStorage.getItem(name) === "undefined") {
+            return 0;
+        }
         return localStorage.getItem(name);
 
     } catch (error) {
@@ -92,7 +96,7 @@ function Options_onload() {
         LoadOption("video_hlssave");
         LoadOption("debug");
         LoadOption("language_setting");
-        LoadOption("downFile_setting");
+        LoadOption("downFile_setting") || "mp4";
     } catch (error) {
         Default_click();
         Options_Save();
