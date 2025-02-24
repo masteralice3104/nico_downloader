@@ -356,7 +356,9 @@ async function DownloadUint8Array(url, NicoDownloader) {
 ////////////////////////////////////////////////////////////////////////
 async function Transcode(Core, m3u8name, NicoDownloader, Nicovideo) {
   NicoDownloader.ButtonTextWrite("変換中");
-  const mode = await Option_setLoading("downFile_setting") || "mp4"; // モードを取得
+  let mode = await Option_setLoading("downFile_setting") || "mp4"; // モードを取得
+  if (mode == 0) mode = "mp4"; // モードが取得できなかった場合はデフォルトのmp4にする
+
   console.log(`Current mode: ${mode}`); // モードを確認するログ
   const file = await runFFmpeg_m3u8(
     Core,
