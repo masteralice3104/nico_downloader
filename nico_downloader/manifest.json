@@ -1,6 +1,6 @@
 {
     "manifest_version": 3,
-    "name": "nico downloader",
+    "name": "nico downloader - reload_fix",
     "description": "ニコニコからの動画保存をサポートする他、ニコニコを便利に使うための非公式の拡張機能です。",
     "version": "5.0.0.18",
     "icons": {
