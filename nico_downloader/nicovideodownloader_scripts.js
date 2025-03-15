@@ -46,15 +46,17 @@ async function VideoDown() {
 
     // 非同期でdownFile_settingを取得する関数
     function downFile_get() {
-        return new Promise((resolve, reject) => {
-            chrome.storage.local.get("downFile_setting", function (value) {
-                if (chrome.runtime.lastError) {
-                    reject(chrome.runtime.lastError);
-                } else {
-                    resolve(value.downFile_setting);
-                }
-            });
-        });
+        try {
+            chrome.storage.local.get(name, function (value) {
+              //chrome.storage.localから読み出し
+              localStorage.setItem(name, value[name]);
+            })
+            //return return_val;
+            return localStorage.getItem(name);
+        
+          } catch (error) {
+            return 0;
+          }
     }
 
     //ダウンロードリンクの表示

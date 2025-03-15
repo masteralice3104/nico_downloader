@@ -12,7 +12,6 @@ LocalStorageで保存される値について
 "downFile_setting"      mp4                 保存ファイル形式(採用)
  */
 
-
 function Option_setWriting(name, value) {
     //ローカルストレージに書き込みを行います
     localStorage.setItem(name, value);
@@ -25,52 +24,61 @@ function Option_setWriting(name, value) {
 }
 
 function Option_setLoading(name) {
-    //ローカルストレージより読み込みを行います
-    //return localStorage.getItem(name);//これだとだめ
+    return new Promise((resolve, reject) => {
+        try {
+            // chrome.storage.localから非同期で値を取得
+            chrome.storage.local.get(name, function(value) {
+                // エラーチェック
+                if (chrome.runtime.lastError) {
+                    reject(chrome.runtime.lastError);
+                    return;
+                }
 
-    try {
-        chrome.storage.local.get(name, function (value) {
-            //chrome.storage.localから読み出し
-            localStorage.setItem(name, value[name]);
-        })
-        //return return_val;
-
-        if (localStorage.getItem(name) === "undefined") {
-            return 0;
+                // localStorageに保存
+                if (value && value.hasOwnProperty(name)) {
+                    localStorage.setItem(name, value[name]);
+                    resolve(value[name]); // 必要な値をresolve
+                } else {
+                    resolve(0); // 値がなければ0を返す
+                }
+            });
+        } catch (error) {
+            reject(error);
         }
-        return localStorage.getItem(name);
-
-    } catch (error) {
-        return 0;
-    }
-
+    });
 }
 
 //オプション値読み込み用関数
-function setOption(name) {
+async function setOption(name) {
     try {
-        if (Option_setLoading(name) === "undefined") {
-            return 0;
+        const value = await Option_setLoading(name);  // Option_setLoadingの結果を待機
+        console.log(name + ":" + value);  // 読み出した値をコンソールに表示
+
+        if (value === undefined) {
+            console.log(0);  // undefined なら 0
         } else {
-
-            return Option_setLoading(name);
+            console.log(value);  // 正常な値をそのまま返す
         }
-
+        return value; // valueを返すように変更
     } catch (error) {
-        DebugPrint("SetOption:" + error)
-        return 0;
+        console.error("SetOption:", error);  // エラーハンドリング
+        return 0; // エラー発生時は0を返す
     }
 }
 
-function newload() {
+async function newload() {
     let newloading = 0;
 
-
     //default値をここへ
-    if (isNullOrUndefined(Option_setLoading("newloading"))) {
-        defalt_dataWrite();
+    try {
+        const value = await Option_setLoading("newloading");
+        if (isNullOrUndefined(value)) {
+            defalt_dataWrite();
+        }
+        newloading = value;
+    } catch (error) {
+        console.error("newload:", error);
     }
-    newloading = Option_setLoading("newloading")
 }
 
 function defalt_dataWrite() {
@@ -85,31 +93,32 @@ function defalt_dataWrite() {
     Options_Save();
 }
 
-function Options_onload() {
+async function Options_onload() {
     //オプション設定ページ表示時
 
     //オプションの値を読み込み
     try {
-        LoadOption("video_downloading");
-        LoadOption("video_pattern");
-        LoadOption("video_autosave");
-        LoadOption("video_hlssave");
-        LoadOption("debug");
-        LoadOption("language_setting");
-        LoadOption("downFile_setting") || "mp4";
+        await LoadOption("video_downloading");
+        await LoadOption("video_pattern");
+        await LoadOption("video_autosave");
+        await LoadOption("video_hlssave");
+        await LoadOption("debug");
+        await LoadOption("language_setting");
+        await LoadOption("downFile_setting");
     } catch (error) {
         Default_click();
         Options_Save();
     }
-
 }
 
-function LoadOption(name) {
-    console.log(setOption(name))
-    if (typeof setOption(name) === "undefined") {
-
-    } else {
-        document.getElementById(name).value = setOption(name);
+async function LoadOption(name) {
+    try {
+        const value = await setOption(name);
+        if (value !== undefined) {
+            document.getElementById(name).value = value;
+        }
+    } catch (error) {
+        console.error("LoadOption:", error);
     }
 }
 
@@ -117,9 +126,12 @@ function isNullOrUndefined(o) {
     return (o === undefined || o === null);
 }
 
-
-function DebugPrint(text) {
-    if (setOption("debug") === "1") {
-        console.log("debug:" + text);
-    }
+async function DebugPrint(text) {
+    await setOption("debug").then(value => {
+        if (value === "1") {
+            console.log("debug:" + text);
+        }
+    }).catch(error => {
+        console.error("DebugPrint:", error);
+    });
 }

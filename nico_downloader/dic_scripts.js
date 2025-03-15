@@ -49,7 +49,7 @@ function Start_Dic() {
 
 }
 
-function pinres() {
+async function pinres() {
 
     let button_threadpin1 = document.createElement('button');
     button_threadpin1.id = `threadpin_move_button1`;
@@ -59,7 +59,7 @@ function pinres() {
     button_threadpin2.id = `threadpin_move_button2`;
     button_threadpin2.innerText = `最後に記録したレスに移動`;
 
-    if (setOption(kiji_URL_get())) {
+    if (await setOption(kiji_URL_get())) {
         document.getElementsByClassName("st-bbs_reshead")[0].before(button_threadpin1);
         document.getElementById("threadpin_move_button1").onclick = threadpin_move;
         document.getElementsByClassName("st-bbs_resbody")[document.getElementsByClassName("st-bbs_resbody").length - 1].after(button_threadpin2);
@@ -204,12 +204,12 @@ function kiji_URL_get() {
 }
 
 
-function resnumhead_plus() {
+async function resnumhead_plus() {
     DebugPrint("resnumhead_plus");
     for (let i = 0; i < document.getElementsByClassName("resnumhead").length; i++) {
 
-        if (setOption(kiji_URL_get())) {
-            if (setOption(kiji_URL_get()) === document.getElementsByClassName("resnumhead")[i].getAttribute("name")) {
+        if (await setOption(kiji_URL_get())) {
+            if (await setOption(kiji_URL_get()) === document.getElementsByClassName("resnumhead")[i].getAttribute("name")) {
                 document.getElementsByClassName("resnumhead")[i].innerText = "■";
             } else {
                 document.getElementsByClassName("resnumhead")[i].innerText = "□";
@@ -249,11 +249,11 @@ function threadpin_move2() {
     threadpin_move()
 }
 
-function threadpin_move() {
+async function threadpin_move() {
 
     DebugPrint("threadpin_move")
     let kiji_URL = kiji_URL_get();
-    let id = Number(setOption(kiji_URL));
+    let id = Number(await setOption(kiji_URL));
     if (id === 0) {
         let defaultURL = kiji_URL + "/1-";
         location.href = defaultURL;

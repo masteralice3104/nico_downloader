@@ -109,16 +109,18 @@ class NicovideoClass {
 
 
     //URLから動画idを取得
-    VideoSmGet(match_sm) {
+    async VideoSmGet(match_sm) {
         let video_sm = '';
         if (location.href.match(match_sm)) {
             video_sm = location.href.match(match_sm).toString();
+            //match_smがObject Promiseのまま渡されているのが悪い
+            console.log("match_sm : " + match_sm);
             DebugPrint("location.href.match match_sm true")
             DebugPrint("match_sm : " + match_sm)
         } else {
             DebugPrint("location.href.match match_sm false")
             DebugPrint("match_sm : " + match_sm)
-            DebugPrint("setOption(\"video_pattern\") : " + setOption("video_pattern"))
+            DebugPrint("setOption(\"video_pattern\") : " + await setOption("video_pattern"))
         }
         return video_sm;
     }

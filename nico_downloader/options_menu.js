@@ -63,13 +63,13 @@ function Options_view_select(name) {
 
 function Options_view_input(name) {
     name_func = name;
-    chrome.storage.local.get(name_func, function (value) {
+    chrome.storage.local.get(name_func, async function (value) {
         //chrome.storage.localから読み出し
-        document.getElementById(name_func).value = setOption(name_func);
-        localStorage.setItem(name_func, setOption(name_func));
+        document.getElementById(name_func).value = await setOption(name_func);
+        localStorage.setItem(name_func, await setOption(name_func));
 
         //表示書き換え
-        let nowtext = "現在の設定：" + setOption(name_func);
+        let nowtext = "現在の設定：" + await setOption(name_func);
         document.getElementById(name_func + "_now_setting").innerText = nowtext;
     })
 }

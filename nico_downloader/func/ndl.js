@@ -124,7 +124,7 @@ class NicoDownloaderClass {
 
         //後で自ら設定しないといけない変数
         this.optionURL = '';// オプションページのURL
-        this.LangSetting = setOption("language_setting") || "ja"; // 言語
+        this.LangSetting = this.initializeSetOption(); // 言語
 
         this.M3u8 = {}; // m3u8の最初の内容
         this.TSURLs = []; // TSのURLリスト
@@ -140,6 +140,15 @@ class NicoDownloaderClass {
 
     }
 
+    ////////////////////////////////////////////////////////////////////////
+    /**
+     * setOptionの初期化処理を行う
+     * @returns {String} 
+     */
+    ////////////////////////////////////////////////////////////////////////
+    async initializeSetOption() {
+        await setOption("language_setting") || "ja";
+    }
 
 
     ////////////////////////////////////////////////////////////////////////
@@ -148,10 +157,10 @@ class NicoDownloaderClass {
      * @returns {Boolean} 読み込みに成功したかどうか true:成功 false:失敗
      */
     ////////////////////////////////////////////////////////////////////////
-    MatchingSMIDArraFirstSetting() {
+    async MatchingSMIDArraFirstSetting() {
         try {
 
-            this.MatchingSMIDArray = setOption("video_pattern");
+            this.MatchingSMIDArray = await setOption("video_pattern");
             if (this.MatchingSMIDArray == "0") {
                 this.MatchingSMIDArray = "sm[0-9]{1,}";
             }
@@ -169,8 +178,8 @@ class NicoDownloaderClass {
      * @returns {Boolean} 
      */
     ////////////////////////////////////////////////////////////////////////
-    VideoDownloadNameArraySetting() {
-        const Setting = setOption("video_downloading");
+    async VideoDownloadNameArraySetting() {
+        const Setting = await setOption("video_downloading");
         /*
             Setting
             0:smID
@@ -468,8 +477,8 @@ class NicoDownloaderClass {
      * @returns {Boolean}
     */
     ////////////////////////////////////////////////////////////////////////
-    SavemodeSetting() {
-        this.Savemode = setOption("video_hlssave");
+    async SavemodeSetting() {
+        this.Savemode = await setOption("video_hlssave");
         return;
     }
 

@@ -356,7 +356,14 @@ async function DownloadUint8Array(url, NicoDownloader) {
 ////////////////////////////////////////////////////////////////////////
 async function Transcode(Core, m3u8name, NicoDownloader, Nicovideo) {
   NicoDownloader.ButtonTextWrite("変換中");
-  let mode = await Option_setLoading("downFile_setting") || "mp4"; // モードを取得
+  var mode = "";
+  Option_setLoading("downFile_setting")
+    .then((value) => {
+      mode = value || "mp4"; // モードを取得
+    })
+    .catch((e) => {
+      console.error("Error:downFile_setting\n", e);
+    });
   if (mode == 0) mode = "mp4"; // モードが取得できなかった場合はデフォルトのmp4にする
 
   console.log(`Current mode: ${mode}`); // モードを確認するログ
@@ -380,15 +387,29 @@ async function Transcode(Core, m3u8name, NicoDownloader, Nicovideo) {
 ////////////////////////////////////////////////////////////////////////
 function Option_setLoading(name) {
   return new Promise((resolve, reject) => {
-    chrome.storage.local.get(name, function (value) {
-        if (chrome.runtime.lastError) {
-            reject(chrome.runtime.lastError);
-        } else {
-            resolve(value.downFile_setting);
-        }
-    });
-});
+      try {
+          // chrome.storage.localから非同期で値を取得
+          chrome.storage.local.get(name, function(value) {
+              // エラーチェック
+              if (chrome.runtime.lastError) {
+                  reject(chrome.runtime.lastError);
+                  return;
+              }
+
+              // localStorageに保存
+              if (value && value.hasOwnProperty(name)) {
+                  localStorage.setItem(name, value[name]);
+                  resolve(value[name]); // 必要な値をresolve
+              } else {
+                  resolve(0); // 値がなければ0を返す
+              }
+          });
+      } catch (error) {
+          reject(error);
+      }
+  });
 }
+
 
 ////////////////////////////////////////////////////////////////////////
 /**
