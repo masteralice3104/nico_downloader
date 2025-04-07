@@ -16,7 +16,6 @@
 
 */
 
-/*
 const VideoData = {
     // 動画のタイトルのクラス名
     Video_title: 'fs_xl fw_bold',
@@ -59,18 +58,16 @@ const VideoData = {
 
 
 }
-*/
-
 
 /**
  * @param {String} NicovideoDownloader__LoadedVideoSMID
  * @param {Boolean} NicovideoDownloader__NowDownloading
  */
-/*
+
 //引き継ぎされる変数
 let NicovideoDownloader__LoadedVideoSMID = "-1"; // 読み込んだ動画のsmID
 let NicovideoDownloader__NowDownloading = false; // ダウンロード中かどうか true:ダウンロード中 false:ダウンロードしていない
-*/
+
 
 
 class NicoDownloaderClass {
@@ -140,47 +137,7 @@ class NicoDownloaderClass {
         this.DownloadFaultNum = 0;
         this.DownloadPercentage = 0;
 
-        this.VideoData = {
-            // 動画のタイトルのクラス名
-            Video_title: 'fs_xl fw_bold',
-        
-            // タイトルの場所のクエリで、ボタンを追加する場所
-            //Video_title_Element: 'd_flex justify_space-between items_flex-start gap_x3 w_100%',
-            //Video_title_Element: 'd_flex jc_space-between ai_flex-start gap_x3 w_100%',//2024-09-06
-            Video_title_Element: 'd_flex jc_space-between ai_flex-start gap_var(--watch-video-information-gap) w_100%',//2025-02-22
-        
-            //Video_title_Element: 'd_flex w_[268px] gap_base items_center',
-        
-            //ボタンの内部構造のクエリ
-            Video_DLlink: {
-                p: 'Dlink',
-                div_class: 'd_flex justify_flex-start',
-                a: 'DLlink_a',
-                li: 'DLlink_li',
-                a2: 'downloadlink'
-            },
-        
-            // SystemMessageのクエリ
-            SystemMessageContainer: 'c_monotone.L80',//2024-09-06
-        
-            // 設定ボタンのクエリ
-            PlayerSettingQuery: '[aria-label="設定"]',
-        
-            // 設定ボタンのクラス名
-            PlayerSettingClass: 'h_[calc(100vh_-_{sizes.commonHeader.inViewHeight}_-_{sizes.webHeader.height}_-_{spacing.x12})] max-h_[480px] rounded_m bg_layer.surfaceHighEm d_flex flex_column overflow_hidden shadow_base',//2024-09-06
-        
-            // SystemMessageのクエリ
-            SystemMessageQuery: '[class^="cursor_pointer d_inline-flex ai_center jc_center gap_x0_5 px_x2 bdr_full fs_s fw_bold button-color_base white-space_nowrap us_none hover:cursor_pointer disabled:pointer-events_none [&_>_svg]:w_auto [&_>_svg]:h_x3 h_x3 [&_svg]:d_none"]',//2024-09-06
-        
-            // ダウンロードボタンのCSSとかHTML
-            DLButton: {
-                a: "<button style='width:200px;height:56px;color: var(--colors-action-text-on-tertiary-azure);background-color: var(--colors-action-base);border-radius: var(--radii-m)'",
-                b: '"\'><b>',
-                c: '</b>'
-            },
-        }
-        this.NicovideoDownloader__LoadedVideoSMID = "-1"; // 読み込んだ動画のsmID
-        this.NicovideoDownloader__NowDownloading = false; // ダウンロード中かどうか true:ダウンロード中 false:ダウンロードしていない
+
     }
 
 
@@ -274,7 +231,7 @@ class NicoDownloaderClass {
             DebugPrint("video_sm : " + video_sm)
             //this.LoadedVideoSMIDが現在のものと同じじゃないならすでに読み込んだ形跡があるので一回消す
             this.LoadedVideoSMID = "-1";// リセット
-            document.getElementById(this.VideoData.Video_DLlink.p).remove();//消す
+            document.getElementById(VideoData.Video_DLlink.p).remove();//消す
         }
         return;
     }
@@ -286,7 +243,7 @@ class NicoDownloaderClass {
      */
     ////////////////////////////////////////////////////////////////////////
     VideoLoadedSet() {
-        this.LoadedVideoSMID = this.NicovideoDownloader__LoadedVideoSMID;
+        this.LoadedVideoSMID = NicovideoDownloader__LoadedVideoSMID;
         return;
     }
 
@@ -297,7 +254,7 @@ class NicoDownloaderClass {
      */
     ////////////////////////////////////////////////////////////////////////
     VideoDownloadingSet() {
-        this.NicovideoDownloader__NowDownloading = true;
+        NicovideoDownloader__NowDownloading = true;
         this.downloading = true;
         return;
     }
@@ -309,7 +266,7 @@ class NicoDownloaderClass {
      */
     ////////////////////////////////////////////////////////////////////////
     VideoDownloadingFirstSetting() {
-        this.downloading = this.NicovideoDownloader__NowDownloading;
+        this.downloading = NicovideoDownloader__NowDownloading;
         return;
     }
 
@@ -320,7 +277,7 @@ class NicoDownloaderClass {
      */
     ////////////////////////////////////////////////////////////////////////
     VideoDownloadingReset() {
-        this.NicovideoDownloader__NowDownloading = false;
+        NicovideoDownloader__NowDownloading = false;
         this.downloading = false;
         return;
     }
@@ -364,7 +321,7 @@ class NicoDownloaderClass {
     ////////////////////////////////////////////////////////////////////////
     VideoLoadedSMIDSet(video_sm) {
         this.LoadedVideoSMID = video_sm;
-        this.NicovideoDownloader__LoadedVideoSMID = this.LoadedVideoSMID;
+        NicovideoDownloader__LoadedVideoSMID = this.LoadedVideoSMID;
         return true;
     }
 
@@ -381,16 +338,16 @@ class NicoDownloaderClass {
     ButtonFirstMake() {
 
         let p_link = document.createElement("p");
-        p_link.id = this.VideoData.Video_DLlink.p;
+        p_link.id = VideoData.Video_DLlink.p;
         p_link.className = VideoData.Video_DLlink.div_class;
         let a_link = document.createElement("a");
         a_link.innerText = "処理中";
-        a_link.id = this.VideoData.Video_DLlink.a;
+        a_link.id = VideoData.Video_DLlink.a;
 
         //すでにあるなら追加しない
         if (!document.getElementById(p_link.id)) {
-            document.getElementsByClassName(this.VideoData.Video_title_Element)[0].appendChild(p_link);
-            document.getElementsByClassName(this.VideoData.Video_title_Element)[0].querySelector("p").appendChild(a_link);
+            document.getElementsByClassName(VideoData.Video_title_Element)[0].appendChild(p_link);
+            document.getElementsByClassName(VideoData.Video_title_Element)[0].querySelector("p").appendChild(a_link);
         }
 
         return true;
@@ -405,7 +362,7 @@ class NicoDownloaderClass {
     ////////////////////////////////////////////////////////////////////////
     ButtonTextWrite(text) {
         // 多言語対応
-        document.getElementById(this.VideoData.Video_DLlink.a).innerHTML = this.VideoData.DLButton.a + this.VideoData.DLButton.b + this.LangText(text) + this.VideoData.DLButton.c;
+        document.getElementById(VideoData.Video_DLlink.a).innerHTML = VideoData.DLButton.a + VideoData.DLButton.b + this.LangText(text) + VideoData.DLButton.c;
         return;
     }
 
@@ -417,7 +374,7 @@ class NicoDownloaderClass {
     */
     ////////////////////////////////////////////////////////////////////////
     ButtonInnerHTMLWrite(innerHTML) {
-        document.getElementById(this.VideoData.Video_DLlink.a).innerHTML = innerHTML;
+        document.getElementById(VideoData.Video_DLlink.a).innerHTML = innerHTML;
         return true;
     }
 
@@ -469,7 +426,7 @@ class NicoDownloaderClass {
     */
     ////////////////////////////////////////////////////////////////////////
     CheckSystemMessageContainer() {
-        if (document.getElementsByClassName(this.VideoData.SystemMessageContainer).length == 0) {
+        if (document.getElementsByClassName(VideoData.SystemMessageContainer).length == 0) {
             return false;
         }
 
@@ -496,7 +453,7 @@ class NicoDownloaderClass {
 
 
         //DLlinkを強制的に読み込む
-        if (document.getElementById(this.VideoData.Video_DLlink.li)) {
+        if (document.getElementById(VideoData.Video_DLlink.li)) {
             //ここには何も書かない
         }
 
@@ -527,11 +484,11 @@ class NicoDownloaderClass {
 
         new Promise((resolve) => {
             //プレーヤー設定を自動的に押す
-            document.querySelector(this.VideoData.PlayerSettingQuery).click();
+            document.querySelector(VideoData.PlayerSettingQuery).click();
             resolve();
         }).then(function () {
             //システムメッセージを開く
-            document.querySelector(this.VideoData.SystemMessageQuery).click();
+            document.querySelector(VideoData.SystemMessageQuery).click();
         })
     }
 
@@ -543,8 +500,8 @@ class NicoDownloaderClass {
     ////////////////////////////////////////////////////////////////////////
     SystemMessgeAutoOpenToText() {
         let text = ""
-        text += "new Promise(function(resolve) {document.querySelector(&#39;" + this.VideoData.PlayerSettingQuery + "&#39;).click();resolve();})";
-        text += ".then(function() {document.querySelector(&#39;" + this.VideoData.SystemMessageQuery + "&#39;).click();});";
+        text += "new Promise(function(resolve) {document.querySelector(&#39;" + VideoData.PlayerSettingQuery + "&#39;).click();resolve();})";
+        text += ".then(function() {document.querySelector(&#39;" + VideoData.SystemMessageQuery + "&#39;).click();});";
         return text;
     }
 
@@ -562,10 +519,10 @@ class NicoDownloaderClass {
             this.optionURL = chrome.runtime.getURL('options.html');
 
             // 初期設定を促す
-            return this.VideoData.DLButton.a + " onclick=\'location.href=&quot;" + this.optionURL + "&quot;\' " + this.VideoData.DLButton.b + this.LangText("要初期設定") + "<a href=\"" + this.optionURL + "\"><br>" + this.LangText("設定画面を開く") + "</a>" + this.VideoData.DLButton.c;
+            return VideoData.DLButton.a + " onclick=\'location.href=&quot;" + this.optionURL + "&quot;\' " + VideoData.DLButton.b + this.LangText("要初期設定") + "<a href=\"" + this.optionURL + "\"><br>" + this.LangText("設定画面を開く") + "</a>" + VideoData.DLButton.c;
         }
 
-        return this.VideoData.DLButton.a + " onclick=\'" + this.SystemMessgeAutoOpenToText() + "\' " + this.VideoData.DLButton.b + video_name + this.LangText("を保存") + this.VideoData.DLButton.c + "</p>";
+        return VideoData.DLButton.a + " onclick=\'" + this.SystemMessgeAutoOpenToText() + "\' " + VideoData.DLButton.b + video_name + this.LangText("を保存") + VideoData.DLButton.c + "</p>";
     }
 
     ////////////////////////////////////////////////////////////////////////
@@ -591,7 +548,7 @@ class NicoDownloaderClass {
     */
     ////////////////////////////////////////////////////////////////////////
     NicoDownloaderFirstSettingCheck() {
-        if (document.getElementById(this.VideoData.Video_DLlink.a).innerHTML.indexOf(this.LangText("要初期設定")) != -1) {
+        if (document.getElementById(VideoData.Video_DLlink.a).innerHTML.indexOf(this.LangText("要初期設定")) != -1) {
             return false;
         }
         return true;
@@ -619,9 +576,9 @@ class NicoDownloaderClass {
         //メッセージより読み込み
         let rawMessage;
         let tempURL = '';
-        for (let i = 0; i < document.getElementsByClassName(this.VideoData.SystemMessageContainer).length; i++) {
+        for (let i = 0; i < document.getElementsByClassName(VideoData.SystemMessageContainer).length; i++) {
             DebugPrint("masterURL" + i)
-            const message = document.getElementsByClassName(this.VideoData.SystemMessageContainer)[i].innerText;
+            const message = document.getElementsByClassName(VideoData.SystemMessageContainer)[i].innerText;
             if (message.match(/(動画の初期化処理が完了しました).*/)) {
                 DebugPrint("URL発見");
                 rawMessage = String(message)
@@ -648,9 +605,9 @@ class NicoDownloaderClass {
     */
     ////////////////////////////////////////////////////////////////////////
     DownloadLinkClick() {
-        if (document.getElementById(this.VideoData.Video_DLlink.a2) != null) {
+        if (document.getElementById(VideoData.Video_DLlink.a2) != null) {
             //ダウンロードのタグがあればクリック
-            const link = document.getElementById(this.VideoData.Video_DLlink.a2);
+            const link = document.getElementById(VideoData.Video_DLlink.a2);
             link.click();
             link.remove();
             this.ButtonTextWrite(this.LangText("保存完了")); //ボタンの文字を変更
