@@ -22,7 +22,7 @@
                 "dist/ffmpeg-core.wasm",
                 "dist/utils.js",
                 "func/NicovideoClass.js",
-                "func/ndl.js",
+                "func/NicoDownloaderClass.js",
                 "func/NicovideoM3u8.js"
             ]
         }
@@ -38,7 +38,7 @@
                 "dist/ffmpeg-core2.js",
                 "dist/utils.js",
                 "func/NicovideoClass.js",
-                "func/ndl.js",
+                "func/NicoDownloaderClass.js",
                 "func/NicovideoM3u8.js"
             ]
         },
