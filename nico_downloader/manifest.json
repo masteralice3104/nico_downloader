@@ -21,7 +21,7 @@
                 "dist/ffmpeg-core2.js",
                 "dist/ffmpeg-core.wasm",
                 "dist/utils.js",
-                "func/nicojson.js",
+                "func/NicovideoClass.js",
                 "func/ndl.js"
             ]
         }
@@ -36,7 +36,7 @@
                 "options.js",
                 "dist/ffmpeg-core2.js",
                 "dist/utils.js",
-                "func/nicojson.js",
+                "func/NicovideoClass.js",
                 "func/ndl.js"
             ]
         },
