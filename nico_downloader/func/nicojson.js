@@ -57,7 +57,7 @@ class NicovideoClass {
     async SetAllFromVideoSm(video_sm) {
         this.video_sm = video_sm;
 
-        if (video_sm == Nicovideo______Ndl______DataLoadedSMID) {
+        if (this.video_sm == this.Nicovideo______Ndl______DataLoadedSMID) {
             return new Promise((resolve, reject) => {
                 DebugPrint("NicovideoClass: SetAllFromVideoSm: JSONLoaded");
                 this.SetJson(Nicovideo______Ndl______DataLoadedJSON);
@@ -88,12 +88,12 @@ class NicovideoClass {
     //jsonをセット
     SetJson(json) {
         this.json = json;
-        Nicovideo______Ndl______DataLoadedJSON = json;
+        this.Nicovideo______Ndl______DataLoadedJSON = json;
     }
 
     //読み込み済みをセット
     SetLoadedSMID(video_sm = this.video_sm) {
-        Nicovideo______Ndl______DataLoadedSMID = video_sm;
+        this.Nicovideo______Ndl______DataLoadedSMID = video_sm;
     }
     //constructorの各変数をセット
     SetAll(json = this.json) {
