@@ -13,8 +13,8 @@ nicovideo.SetAllFromVideoSm('sm9').then(() => {
 
 
 // 残さねばならない変数
-let Nicovideo______Ndl______DataLoadedSMID = '-1'; // データを取得した動画のsmid
-let Nicovideo______Ndl______DataLoadedJSON = {}; // JSONデータ   
+//let Nicovideo______Ndl______DataLoadedSMID = '-1'; // データを取得した動画のsmid
+//let Nicovideo______Ndl______DataLoadedJSON = {}; // JSONデータ   
 
 class NicovideoClass {
     constructor() {
@@ -37,6 +37,9 @@ class NicovideoClass {
 
         //後で自ら設定しないといけない変数
         this.video_name = "";// 動画の保存名
+
+        this.Nicovideo______Ndl______DataLoadedSMID = '-1'; // データを取得した動画のsmid
+        this.Nicovideo______Ndl______DataLoadedJSON = {}; // JSONデータ
     }
 
     //URLがマッチするか確認
