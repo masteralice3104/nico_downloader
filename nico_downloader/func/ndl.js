@@ -46,7 +46,8 @@ const VideoData = {
     PlayerSettingClass: 'h_[calc(100vh_-_{sizes.commonHeader.inViewHeight}_-_{sizes.webHeader.height}_-_{spacing.x12})] max-h_[480px] rounded_m bg_layer.surfaceHighEm d_flex flex_column overflow_hidden shadow_base',//2024-09-06
 
     // SystemMessageのクエリ
-    SystemMessageQuery: '[class^="cursor_pointer d_inline-flex ai_center jc_center gap_x0_5 px_x2 bdr_full fs_s fw_bold button-color_base white-space_nowrap us_none hover:cursor_pointer disabled:pointer-events_none [&_>_svg]:w_auto [&_>_svg]:h_x3 h_x3 [&_svg]:d_none"]',//2024-09-06
+    SystemMessageQuery:'[class^="cursor_pointer d_inline-flex ai_center jc_center gap_x0_5 px_x2 bdr_full fs_s fw_bold button-color_base white-space_nowrap us_none hover:cursor_pointer disabled:pointer-events_none [&_>_svg]:w_auto [&_>_svg]:h_x3 h_x3 [&_svg]:d_none"]:last-child',//2025-07-01
+    //SystemMessageQuery: '[class^="cursor_pointer d_inline-flex ai_center jc_center gap_x0_5 px_x2 bdr_full fs_s fw_bold button-color_base white-space_nowrap us_none hover:cursor_pointer disabled:pointer-events_none [&_>_svg]:w_auto [&_>_svg]:h_x3 h_x3 [&_svg]:d_none"]',//2024-09-06
 
     // ダウンロードボタンのCSSとかHTML
     DLButton: {
