@@ -8,7 +8,8 @@
     VideoData.PlayerSettingQuery : 設定ボタンのクエリ
     VideoData.PlayerSettingClass : 設定ボタンのクラス名
     VideoData.SystemMessageClass : SystemMessageのクラス名
-    VideoData.SystemMessageQuery : SystemMessageのクエリ
+    //VideoData.SystemMessageQuery : SystemMessageのクエリ
+    VideoData.SystemMessageButtonExpr : システムメッセージを表示するボタンを評価する式
     VideoData.DLButton : ダウンロードボタンのCSSとかHTML
     VideoData.DLButton.a : ダウンロードボタンのHTMLの前半
     VideoData.DLButton.b : ダウンロードボタンのHTMLの中身
@@ -40,14 +41,21 @@ const VideoData = {
     SystemMessageContainer: 'c_monotone.L80',//2024-09-06
 
     // 設定ボタンのクエリ
-    PlayerSettingQuery: '[aria-label="設定"]',
+    PlayerSettingQuery: "[aria-label=\'設定\']",
 
     // 設定ボタンのクラス名
     PlayerSettingClass: 'h_[calc(100vh_-_{sizes.commonHeader.inViewHeight}_-_{sizes.webHeader.height}_-_{spacing.x12})] max-h_[480px] rounded_m bg_layer.surfaceHighEm d_flex flex_column overflow_hidden shadow_base',//2024-09-06
 
     // SystemMessageのクエリ
-    SystemMessageQuery:'[class^="cursor_pointer d_inline-flex ai_center jc_center gap_x0_5 px_x2 bdr_full fs_s fw_bold button-color_base white-space_nowrap us_none hover:cursor_pointer disabled:pointer-events_none [&_>_svg]:w_auto [&_>_svg]:h_x3 h_x3 [&_svg]:d_none"]:last-child',//2025-07-01
+    //SystemMessageQuery:'[class*="cursor_pointer d_inline-flex ai_center jc_center gap_x0_5 px_x2 bdr_full fs_s fw_bold button-color_base"]:last-child',//2025-08-20
+    //SystemMessageQuery:'[class^="cursor_pointer d_inline-flex ai_center jc_center gap_x0_5 px_x2 bdr_full fs_s fw_bold button-color_base white-space_nowrap us_none hover:cursor_pointer disabled:pointer-events_none [&_>_svg]:w_auto [&_>_svg]:h_x3 h_x3 [&_svg]:d_none"]:last-child',//2025-07-01
     //SystemMessageQuery: '[class^="cursor_pointer d_inline-flex ai_center jc_center gap_x0_5 px_x2 bdr_full fs_s fw_bold button-color_base white-space_nowrap us_none hover:cursor_pointer disabled:pointer-events_none [&_>_svg]:w_auto [&_>_svg]:h_x3 h_x3 [&_svg]:d_none"]',//2024-09-06
+    //
+    //上記クエリは廃止になりました
+
+    // システムメッセージを表示するボタンを評価する式
+    SystemMessageButtonExpr :'Array.from(document.querySelectorAll(\'button,[role="button"]\'))' +
+  '.find(function(el){return (el.textContent||"").trim()==="システムメッセージを表示";})',
 
     // ダウンロードボタンのCSSとかHTML
     DLButton: {
@@ -474,24 +482,6 @@ class NicoDownloaderClass {
         return;
     }
 
-    ////////////////////////////////////////////////////////////////////////
-    /**
-     * SystemMessageAutoOpenの関数
-     * 実際には使わないが、この関数を参考にSystemMessageAutoOpenToText()を作る
-     * @returns なし
-    */
-    ////////////////////////////////////////////////////////////////////////    
-    ____SystemMessageAutoOpen() {
-
-        new Promise((resolve) => {
-            //プレーヤー設定を自動的に押す
-            document.querySelector(VideoData.PlayerSettingQuery).click();
-            resolve();
-        }).then(function () {
-            //システムメッセージを開く
-            document.querySelector(VideoData.SystemMessageQuery).click();
-        })
-    }
 
     ////////////////////////////////////////////////////////////////////////
     /**
@@ -499,11 +489,20 @@ class NicoDownloaderClass {
      * @returns {String} SystemMessageAutoOpenのテキスト版
     */
     ////////////////////////////////////////////////////////////////////////
-    SystemMessgeAutoOpenToText() {
-        let text = ""
-        text += "new Promise(function(resolve) {document.querySelector(&#39;" + VideoData.PlayerSettingQuery + "&#39;).click();resolve();})";
-        text += ".then(function() {document.querySelector(&#39;" + VideoData.SystemMessageQuery + "&#39;).click();});";
-        return text;
+    SystemMessageAutoOpenToText() {
+        const js =
+            "new Promise(function(r){document.querySelector(" +
+            JSON.stringify(VideoData.PlayerSettingQuery) + // "[aria-label=\"設定\"]" などが安全に入る
+            ").click();r();})" +
+            ".then(function(){(" + VideoData.SystemMessageButtonExpr + ")?.click();});";
+
+        // onclick=" ... " にそのまま入れるための完全なエスケープ
+        return js
+            .replace(/&/g, "&amp;")
+            .replace(/</g, "&lt;")
+            .replace(/>/g, "&gt;")
+            .replace(/"/g, "&quot;")
+            .replace(/'/g, "&#39;");
     }
 
     ////////////////////////////////////////////////////////////////////////
@@ -523,7 +522,7 @@ class NicoDownloaderClass {
             return VideoData.DLButton.a + " onclick=\'location.href=&quot;" + this.optionURL + "&quot;\' " + VideoData.DLButton.b + this.LangText("要初期設定") + "<a href=\"" + this.optionURL + "\"><br>" + this.LangText("設定画面を開く") + "</a>" + VideoData.DLButton.c;
         }
 
-        return VideoData.DLButton.a + " onclick=\'" + this.SystemMessgeAutoOpenToText() + "\' " + VideoData.DLButton.b + video_name + this.LangText("を保存") + VideoData.DLButton.c + "</p>";
+        return VideoData.DLButton.a + " onclick=\'" + this.SystemMessageAutoOpenToText() + "\' " + VideoData.DLButton.b + video_name + this.LangText("を保存") + VideoData.DLButton.c + "</p>";
     }
 
     ////////////////////////////////////////////////////////////////////////

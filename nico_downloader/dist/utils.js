@@ -75,6 +75,11 @@ const runFFmpeg_m3u8 = async (
 
     DebugPrint(`OutputFileName: ${outputFileName}`);
 
+    console.log("=== FFmpeg変換開始 ===");
+    console.log(`入力ファイル: ${m3u8name}`);
+    console.log(`出力ファイル: ${outputFileName}`);
+    console.log(`変換モード: ${mode}`);
+
     //ffmpeg実行
     ffmpeg(Core, [
       "-allowed_extensions",
@@ -110,7 +115,27 @@ const runFFmpeg_m3u8 = async (
         : ["-c", "copy"]), // MP4モードでオーディオ・ビデオをコピー
       outputFileName,
     ]);
-    DebugPrint(`ffmpeg called with args: ${ffmpegArgs.join(" ")}`);
+
+    // FFmpegコマンドの引数をログ出力
+    const ffmpegArgs = [
+      "-allowed_extensions", "ALL", "-i", m3u8name,
+      "-metadata", `title=${title_str}`,
+      "-metadata", `show=${title_str}`,
+      "-metadata", `creation_time=${timestamp_str}`,
+      "-metadata", `date=${timestamp_str}`,
+      "-metadata", `artist=${username_str}`,
+      "-metadata", `description=${description_str}`,
+      "-metadata", `comment=${description_str}`,
+      "-metadata", `genre=${genre_str}`,
+      "-metadata", `publisher=nicovideo.jp`,
+      "-metadata", `episode_id=${Nicovideo.video_sm}`,
+      "-metadata", `album=${series_str}`,
+      "-metadata", `album_artist=${username_str}`,
+      ...(mode === "aac" ? ["-vn", "-c:a", "copy"] : ["-c", "copy"]),
+      outputFileName
+    ];
+    console.log(`FFmpegコマンド: ffmpeg ${ffmpegArgs.join(" ")}`);
+    console.log("=== 変換処理開始 ===");
   } catch (err) {
     //エラーが出たら
     DebugPrint("runFFmpeg:" + err);
@@ -174,10 +199,19 @@ async function DownEncoder(NicoDownloader, m3u8s, Nicovideo) {
 
   //https://github.com/naari3/nico-downloader-ffmpeg/blob/main/src/background.ts  //偉大なる@_naari_氏による協力に感謝いたします
   let file = null;
+  
+  console.log("=== FFmpeg初期化開始 ===");
+  
   const core = await createFFmpegCore({
-    printErr: (e) => DebugPrint(`FFMPEG:${e}`),
+    printErr: (e) => {
+      DebugPrint(`FFMPEG:${e}`);
+      // FFmpegの進捗情報を解析
+      parseFFmpegProgress(e, NicoDownloader);
+    },
     print: (e) => {
       DebugPrint(`FFMPEG: ${e}`);
+      // FFmpegの進捗情報を解析
+      parseFFmpegProgress(e, NicoDownloader);
       if (e.startsWith("FFMPEG_END")) {
         // FFMPEG_ENDで終了
         //終了時の処理
@@ -231,6 +265,8 @@ async function DownEncoder(NicoDownloader, m3u8s, Nicovideo) {
   //URLsを片っ端から処理
   //落としてファイルシステムにいれていく
   let promises = [];
+  const BATCH_SIZE = 10; // 同時ダウンロード数を10に設定
+
   for (let i = 0; i < NicoDownloader.TSURLs.length; i++) {
     const promise = new Promise((resolve, reject) => {
       DownloadUint8Array(NicoDownloader.TSURLs[i], NicoDownloader).then(
@@ -240,6 +276,9 @@ async function DownEncoder(NicoDownloader, m3u8s, Nicovideo) {
           let filename = NicoDownloader.TSFilenames[i];
           core.FS.writeFile(filename, byte);
           DebugPrint("FSwrite:" + filename);
+
+          // メモリ解放のためにbyteを明示的にnullに設定
+          byte = null;
 
           //ダウンロードパーセンテージを計算
           const downpercentage =
@@ -268,38 +307,54 @@ async function DownEncoder(NicoDownloader, m3u8s, Nicovideo) {
           //最後のファイルの場合はresolve
           resolve(filename);
         }
-      );
+      ).catch(error => {
+        console.error(`ダウンロードエラー: ${NicoDownloader.TSURLs[i]}`, error);
+        reject(error);
+      });
     });
 
     promises.push(promise);
 
-    if (i % 2 == 1) {
-      await Promise.all(promises);
+    // BATCH_SIZE個毎、または最後の要素でバッチ処理を実行
+    if (promises.length >= BATCH_SIZE || i === NicoDownloader.TSURLs.length - 1) {
+      try {
+        await Promise.all(promises);
+        promises = []; // バッチが完了したらpromises配列をクリア
+        
+        // ガベージコレクションを強制実行
+        if (window.gc) {
+          window.gc();
+        }
+        
+        // 少し待機してメモリを安定させる
+        await new Promise(resolve => setTimeout(resolve, 100));
+      } catch (error) {
+        console.error("バッチダウンロードエラー:", error);
+        throw error;
+      }
     }
   }
 
   //Transcodeする
+  // 全てのダウンロードが完了後に変換処理を開始
+  //間違ってURLを読みに行くのでm3u8を3つ書き換える
+  //m3u8末尾の3個
+  const m3u8s_num = m3u8s.length / 2;
+  for (let i = 0; i < m3u8s_num; i++) {
+    DebugPrint(
+      m3u8s[m3u8s_num + i] + " -> " + new TextEncoder().encode(m3u8s[i])
+    );
+    core.FS.writeFile(
+      m3u8s[m3u8s_num + i],
+      new TextEncoder().encode(m3u8s[i])
+    );
+  }
 
-  await Promise.all(promises).then(() => {
-    //間違ってURLを読みに行くのでm3u8を3つ書き換える
-    //m3u8末尾の3個
-    const m3u8s_num = m3u8s.length / 2;
-    for (let i = 0; i < m3u8s_num; i++) {
-      DebugPrint(
-        m3u8s[m3u8s_num + i] + " -> " + new TextEncoder().encode(m3u8s[i])
-      );
-      core.FS.writeFile(
-        m3u8s[m3u8s_num + i],
-        new TextEncoder().encode(m3u8s[i])
-      );
-    }
+  const m3u8name = m3u8s[m3u8s.length - 1];
+  NicoDownloader.ButtonTextWrite("結合処理中");
 
-    const m3u8name = m3u8s[m3u8s.length - 1];
-    NicoDownloader.ButtonTextWrite("結合処理中");
-
-    Transcode(core, m3u8name, NicoDownloader, Nicovideo).then(() => {
-      NicoDownloader.VideoDownloadingReset(); // ダウンロード中をリセット
-    });
+  Transcode(core, m3u8name, NicoDownloader, Nicovideo).then(() => {
+    NicoDownloader.VideoDownloadingReset(); // ダウンロード中をリセット
   });
 
   return true;
@@ -314,17 +369,26 @@ async function DownEncoder(NicoDownloader, m3u8s, Nicovideo) {
  */
 ////////////////////////////////////////////////////////////////////////
 async function Downloadblob(url, NicoDownloader) {
-  //TSの取得
-  let res = await fetch_retry(
-    url,
-    NicoDownloader,
-    { credentials: "include" },
-    100
-  );
+  try {
+    //TSの取得
+    let res = await fetch_retry(
+      url,
+      NicoDownloader,
+      { credentials: "include" },
+      100
+    );
 
-  let blob = res.blob();
-  DebugPrint("BLOBgetEnd:" + url);
-  return blob;
+    let blob = await res.blob();
+    DebugPrint("BLOBgetEnd:" + url);
+    
+    // レスポンスオブジェクトを明示的にクリア
+    res = null;
+    
+    return blob;
+  } catch (error) {
+    console.error(`Blob取得エラー: ${url}`, error);
+    throw error;
+  }
 }
 
 ////////////////////////////////////////////////////////////////////////
@@ -336,12 +400,20 @@ async function Downloadblob(url, NicoDownloader) {
  */
 ////////////////////////////////////////////////////////////////////////
 async function DownloadUint8Array(url, NicoDownloader) {
-  let blob = await Downloadblob(url, NicoDownloader);
-  let byte = null;
-  await blob.arrayBuffer().then((data) => {
-    byte = new Uint8Array(data);
-  });
-  return byte;
+  try {
+    let blob = await Downloadblob(url, NicoDownloader);
+    let arrayBuffer = await blob.arrayBuffer();
+    let byte = new Uint8Array(arrayBuffer);
+    
+    // メモリ解放
+    blob = null;
+    arrayBuffer = null;
+    
+    return byte;
+  } catch (error) {
+    console.error(`Uint8Array取得エラー: ${url}`, error);
+    throw error;
+  }
 }
 
 ////////////////////////////////////////////////////////////////////////
@@ -436,4 +508,65 @@ function sleep(waitMsec) {
 
   // 指定ミリ秒間だけループさせる（CPUは常にビジー状態）
   while (new Date() - startMsec < waitMsec);
+}
+
+////////////////////////////////////////////////////////////////////////
+/**
+ * FFmpegの出力から進捗情報を解析してコンソールに表示
+ * @param {String} output FFmpegの出力文字列
+ * @param {NicoDownloaderClass} NicoDownloader
+ */
+////////////////////////////////////////////////////////////////////////
+function parseFFmpegProgress(output, NicoDownloader) {
+  // メモリ不足エラーを検出
+  if (output.includes("Array buffer allocation failed") || 
+      output.includes("RangeError") || 
+      output.includes("out of memory")) {
+    console.error("メモリ不足エラーが検出されました:", output);
+    NicoDownloader.ButtonTextWrite("メモリ不足エラー");
+    return;
+  }
+
+  // フレーム数の進捗を検出
+  const frameMatch = output.match(/frame=\s*(\d+)/);
+  if (frameMatch) {
+    const currentFrame = parseInt(frameMatch[1]);
+    // 進捗ログの頻度を制限（100フレームごと）
+    if (currentFrame % 100 === 0) {
+      console.log(`変換進捗: フレーム ${currentFrame} 処理中`);
+    }
+  }
+
+  // 時間の進捗を検出 (time=00:01:23.45 形式)
+  const timeMatch = output.match(/time=(\d{2}:\d{2}:\d{2}\.\d{2})/);
+  if (timeMatch) {
+    const currentTime = timeMatch[1];
+    console.log(`変換進捗: 時刻 ${currentTime} まで処理完了`);
+  }
+
+  // 速度情報を検出
+  const speedMatch = output.match(/speed=\s*([\d.]+)x/);
+  if (speedMatch) {
+    const speed = parseFloat(speedMatch[1]);
+    console.log(`変換速度: ${speed}x (リアルタイムの${speed}倍速)`);
+  }
+
+  // ビットレート情報を検出
+  const bitrateMatch = output.match(/bitrate=\s*([\d.]+)kbits\/s/);
+  if (bitrateMatch) {
+    const bitrate = parseFloat(bitrateMatch[1]);
+    console.log(`現在のビットレート: ${bitrate} kbits/s`);
+  }
+
+  // ファイルサイズ情報を検出
+  const sizeMatch = output.match(/size=\s*(\d+)kB/);
+  if (sizeMatch) {
+    const size = parseInt(sizeMatch[1]);
+    console.log(`出力ファイルサイズ: ${size} kB`);
+  }
+
+  // 進捗パーセンテージを推定してボタンに表示
+  if (frameMatch || timeMatch) {
+    NicoDownloader.ButtonTextWrite(`変換中 (${timeMatch ? timeMatch[1] : 'フレーム ' + frameMatch[1]})`);
+  }
 }
