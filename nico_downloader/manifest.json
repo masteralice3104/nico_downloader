@@ -9,7 +9,8 @@
         "128": "icon_128.png"
     },
     "permissions": [
-        "storage"
+        "storage",
+        "tabs"
     ],
     "web_accessible_resources": [
         {
@@ -50,5 +51,9 @@
             ]
         }
     ],
+    "background": {
+        "service_worker": "icon_clicked.js"
+    },
+    "action":{},
     "options_page": "options.html"
 }
