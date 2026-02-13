@@ -32,7 +32,7 @@
                 "https://www.nicovideo.jp/*"
             ],
             "js": [
-                "nicovideodownloader_scripts.js",
+                "nicovideo_start.js",
                 "options.js",
                 "dist/ffmpeg-core2.js",
                 "dist/utils.js",
