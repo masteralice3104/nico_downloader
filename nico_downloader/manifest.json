@@ -18,11 +18,11 @@
             ],
             "resources": [
                 "options.html",
-                "dist/ffmpeg-core2.js",
-                "dist/ffmpeg-core.wasm",
-                "dist/utils.js",
+                "ffmpeg/ffmpeg-core2.js",
+                "ffmpeg/ffmpeg-core.wasm",
+                "ffmpeg/utils.js",
                 "func/nicojson.js",
-                "func/ndl.js"
+                "func/utils.js"
             ]
         }
     ],
@@ -32,12 +32,12 @@
                 "https://www.nicovideo.jp/*"
             ],
             "js": [
-                "nicovideodownloader_scripts.js",
+                "nicovideo_start.js",
                 "options.js",
-                "dist/ffmpeg-core2.js",
-                "dist/utils.js",
+                "ffmpeg/ffmpeg-core2.js",
+                "ffmpeg/utils.js",
                 "func/nicojson.js",
-                "func/ndl.js"
+                "func/utils.js"
             ]
         },
         {
@@ -45,7 +45,7 @@
                 "https://dic.nicovideo.jp/*"
             ],
             "js": [
-                "dic_scripts.js",
+                "dic_start.js",
                 "options.js"
             ]
         }
