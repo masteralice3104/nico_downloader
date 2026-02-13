@@ -22,7 +22,7 @@
                 "ffmpeg/ffmpeg-core.wasm",
                 "ffmpeg/utils.js",
                 "func/nicojson.js",
-                "func/ndl.js"
+                "func/utils.js"
             ]
         }
     ],
@@ -37,7 +37,7 @@
                 "ffmpeg/ffmpeg-core2.js",
                 "ffmpeg/utils.js",
                 "func/nicojson.js",
-                "func/ndl.js"
+                "func/utils.js"
             ]
         },
         {
