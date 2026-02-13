@@ -45,7 +45,7 @@
                 "https://dic.nicovideo.jp/*"
             ],
             "js": [
-                "dic_scripts.js",
+                "dic_start.js",
                 "options.js"
             ]
         }
