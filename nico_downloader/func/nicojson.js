@@ -123,71 +123,69 @@ class NicovideoClass {
         return video_sm;
     }
 
+    //旧レスポンス形式とwatchV4形式の両方から動画情報を取得
+    GetWatchData(json = this.json) {
+        const response = json?.data?.response;
+        return response?.$watchV4?.data ?? response ?? {};
+    }
+
+    GetVideo(json = this.json) {
+        return this.GetWatchData(json).video ?? {};
+    }
+
     //jsonより再生数を取得
     JsonToViewCount(json = this.json) {
-        if (json.data.response.video.count.view == null) return 0;
-        return json.data.response.video.count.view;// 再生数
+        return this.GetVideo(json).count?.view ?? 0;// 再生数
     }
     //jsonよりコメント数を取得
     JsonToCommentCount(json = this.json) {
-        if (json.data.response.video.count.comment == null) return 0;
-        return json.data.response.video.count.comment;// コメント数
+        return this.GetVideo(json).count?.comment ?? 0;// コメント数
     }
     //jsonよりマイリスト数を取得
     JsonToMylistCount(json = this.json) {
-        if (json.data.response.video.count.mylist == null) return 0;
-        return json.data.response.video.count.mylist;// マイリスト数
+        return this.GetVideo(json).count?.mylist ?? 0;// マイリスト数
     }
     //jsonよりいいね数を取得
     JsonToLikeCount(json = this.json) {
-        if (json.data.response.video.count.like == null) return 0;
-        return json.data.response.video.count.like; // いいね数
+        return this.GetVideo(json).count?.like ?? 0; // いいね数
     }
     //jsonよりタイトルを取得
     JsonToTitle(json = this.json) {
-        if (json.data.response.video.title == null) return "";
-        return json.data.response.video.title; // タイトル
+        return this.GetVideo(json).title ?? ""; // タイトル
     }
     //jsonよりidを取得
     JsonToId(json = this.json) {
-        if (json.data.response.video.id == null) return "";
-        return json.data.response.video.id; // id
+        return this.GetVideo(json).id ?? ""; // id
     }
     //jsonより登録日時を取得
     JsonToRegisteredAt(json = this.json) {
-        return json.data.response.video.registeredAt; // 登録日時
+        return this.GetVideo(json).registeredAt ?? ""; // 登録日時
     }
     //jsonより投稿ユーザー名を取得
     JsonToUser(json = this.json) {
-        if (json.data.response.owner == null) return "";
-        return json.data.response.owner.nickname; // 投稿ユーザー名
+        const response = json?.data?.response;
+        return response?.owner?.nickname ?? this.GetWatchData(json).metadata?.jsonLd?.owner?.name ?? ""; // 投稿ユーザー名
     }
     //jsonより説明文を取得
     JsonToDescription(json = this.json) {
-        if (json.data.response.video.description == null) return "";
-        return json.data.response.video.description; // 説明文
+        return this.GetVideo(json).description ?? ""; // 説明文
     }
 
     //jsonよりタグを取得
     JsonToTags(json = this.json) {
-        let tags = [];
-        if (!json.data.response.tag.items[0]) return [];
-        for (let i = 0; i < json.data.response.tag.items[i].length; i++) {
-            tags.push(json.data.response.tag.items[i].name);
-        }
-        return tags;
+        const response = json?.data?.response;
+        const items = this.GetWatchData(json).tags?.items ?? response?.tag?.items ?? [];
+        return items.map(tag => tag.name);
     }
 
     //jsonよりジャンルを取得
     JsonToGenre(json = this.json) {
-        if (json.data.response.genre == null) return "";
-        return json.data.response.genre.label; // ジャンル
+        return this.GetWatchData(json).genre?.label ?? ""; // ジャンル
     }
 
     //jsonよりシリーズを取得
     JsonToSeries(json = this.json) {
-        if (json.data.response.series == null) return "";
-        return json.data.response.series.title; // シリーズ
+        return json?.data?.response?.series?.title ?? ""; // シリーズ
     }
 
     //変数の中身が適正なデータかチェックする関数

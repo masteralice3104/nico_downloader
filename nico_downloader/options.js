@@ -120,6 +120,11 @@ function isNullOrUndefined(o) {
 
 function DebugPrint(text) {
     if (setOption("debug") === "1") {
-        console.log("debug:" + text);
+        if (typeof text === "object") {
+            console.log(JSON.stringify(text));
+        } else {
+            console.log("debug:" + text);
+        }
+        
     }
 }
