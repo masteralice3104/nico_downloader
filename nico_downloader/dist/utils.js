@@ -61,6 +61,11 @@ const runFFmpeg_m3u8 = async (
       encodeURIComponent(Nicovideo.video_description)
     );
 
+    // タグ(配列)をカンマ区切りの文字列にし、日本語エンコード
+    const tags_str = unescape(
+    encodeURIComponent((Nicovideo.video_tags || []).join(", "))
+    );
+
     // ジャンルとシリーズは日本語が入っているとエラーになるのでエンコード
     //unescapeは非推奨だが見なかったことにする
     const genre_str = unescape(encodeURIComponent(Nicovideo.video_genre));
@@ -100,6 +105,8 @@ const runFFmpeg_m3u8 = async (
       `description=${description_str}`, // 説明
       "-metadata",
       `comment=${description_str}`, // 説明
+      "-metadata",
+      `keywords=${tags_str}`, //タグ
       "-metadata",
       `genre=${genre_str}`, // ジャンル
       "-metadata",
