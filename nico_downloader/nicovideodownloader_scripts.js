@@ -14,34 +14,38 @@ async function VideoDown() {
     // ダウンロードリンクをクリック
     NicoDownloader.DownloadLinkClick();
 
-    // 現在のページのsm番号の取得しセット
+    // 現在のページの動画IDを取得
     Nicovideo.video_sm = Nicovideo.VideoSmGet(NicoDownloader.MatchingSMIDArray);
+    if (Nicovideo.video_sm == "") {
+        DebugPrint("video_sm is empty; the current URL did not match video_pattern");
+        return false;
+    }
 
-    await Nicovideo.SetAllFromVideoSm(Nicovideo.video_sm);
+    // 動画情報APIが失敗しても、ページ上のタイトルを使ってボタンを表示できるようにする
+    try {
+        await Nicovideo.SetAllFromVideoSm(Nicovideo.video_sm);
+    } catch (error) {
+        DebugPrint("Video metadata could not be loaded: " + error);
+    }
+    if (Nicovideo.video_title == "") {
+        Nicovideo.video_title = Nicovideo.GetPageTitle() || Nicovideo.video_sm;
+        DebugPrint("Using fallback video title: " + Nicovideo.video_title);
+    }
 
-    await new Promise(async (resolve, reject) => {
-        // sm番号かタイトルが取得できなかったら終了
-        if (Nicovideo.video_sm == "" || Nicovideo.video_title == "")
-            reject("video_sm or video_title is null");
+    // デフォルト動画ファイル名の定義
+    const downFile_setting = await downFile_get();
+    DebugPrint("downFile_setting:" + downFile_setting); // 取得した値を表示
 
-        // デフォルト動画ファイル名の定義
-        let downFile_setting = await downFile_get();
-        DebugPrint("downFile_setting:" + downFile_setting); // 取得した値を表示
+    const video_name = NicoDownloader.VideoDownloadNameMake(
+        Nicovideo.video_sm,
+        Nicovideo.video_title,
+        downFile_setting
+    );
+    Nicovideo.video_name = video_name;
 
-        let video_name = NicoDownloader.VideoDownloadNameMake(
-            Nicovideo.video_sm,
-            Nicovideo.video_title,
-            downFile_setting
-        );
-        Nicovideo.video_name = video_name;
-        //DebugPrint("video_name:" + Nicovideo.video_name);
+    // すでに作ったリンクがあるかどうか判別し、あれば削除
+    NicoDownloader.VideoTitleElementCheck(Nicovideo.video_sm);
 
-        // すでに作ったリンクがあるかどうか判別し、あれば削除
-        NicoDownloader.VideoTitleElementCheck(Nicovideo.video_sm);
-
-        // resolve
-        resolve();
-    });
     DebugPrint("video_name:" + Nicovideo.video_name);
 
     // 非同期でdownFile_settingを取得する関数
@@ -121,7 +125,7 @@ try {
         if (interval1st) {
             // 2回目以降は実行
             try {
-                VideoDown();
+                VideoDown().catch((e) => console.error(e));
             } catch (e) {
                 console.log(e);
             }

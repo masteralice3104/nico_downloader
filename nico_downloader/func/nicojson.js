@@ -133,6 +133,27 @@ class NicovideoClass {
         return this.GetWatchData(json).video ?? {};
     }
 
+    // JSONから動画タイトルを取得できない場合にページ上の表示から補う
+    GetPageTitle() {
+        const candidates = [
+            document.querySelector("h1")?.textContent,
+            document.querySelector('meta[property="og:title"]')?.getAttribute("content"),
+            document.querySelector('meta[name="twitter:title"]')?.getAttribute("content"),
+            document.title,
+        ];
+
+        for (const candidate of candidates) {
+            const title = String(candidate ?? "")
+                .trim()
+                .replace(/\s*[-|｜]\s*(?:ニコニコ動画|niconico).*$/i, "")
+                .trim();
+            if (title && !/^(?:ニコニコ(?:動画)?|niconico)$/i.test(title)) {
+                return title;
+            }
+        }
+        return "";
+    }
+
     //jsonより再生数を取得
     JsonToViewCount(json = this.json) {
         return this.GetVideo(json).count?.view ?? 0;// 再生数
