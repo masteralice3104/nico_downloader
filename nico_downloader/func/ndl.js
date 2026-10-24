@@ -390,18 +390,29 @@ class NicoDownloaderClass {
     */
     ////////////////////////////////////////////////////////////////////////
     ButtonTextWrite(text) {
-        if (IsShortVideoPage()) {
-            const button = document.getElementById(VideoData.Video_DLlink.a)?.querySelector("button");
-            if (button) {
-                const label = this.LangText(text);
-                const busy = /処理中|処理開始|確認中|ダウンロード中|変換中|変換終了|まもなく保存完了|Processing|Downloading|Converting|Conversion finished|Saved soon/.test(label);
-                this.ShortButtonStatus(button, label, busy);
-                return;
-            }
+        const button = document.getElementById(VideoData.Video_DLlink.a)?.querySelector("button");
+        const label = this.LangText(text);
+        const busy = /処理中|処理開始|確認中|ダウンロード中|変換中|変換終了|まもなく保存完了|Processing|Downloading|Converting|Conversion finished|Saved soon/.test(label);
+        if (button && IsShortVideoPage()) {
+            this.ShortButtonStatus(button, label, busy);
+            return;
         }
-        // 多言語対応
-        this.ButtonInnerHTMLWrite(VideoData.DLButton.a + VideoData.DLButton.b + this.LangText(text) + VideoData.DLButton.c);
-        return;
+        const caption = button?.querySelector("b");
+        const icon = button?.querySelector("svg");
+        if (caption && icon) {
+            caption.textContent = label;
+            button.setAttribute("aria-busy", String(busy));
+            button.disabled = busy;
+            if (!button.dataset.ndlIdleSvg) button.dataset.ndlIdleSvg = icon.outerHTML;
+            const status = busy ? "busy" : "idle";
+            // 文字の進捗更新ではSVGを入れ替えず、回転を継続する。
+            if (button.dataset.ndlStatus !== status) {
+                button.dataset.ndlStatus = status;
+                icon.outerHTML = busy ? this.ButtonStatusIcon("busy").replace('style="', 'style="display:block;flex-shrink:0;width:24px;height:24px;') : button.dataset.ndlIdleSvg;
+            }
+            return;
+        }
+        this.ButtonInnerHTMLWrite(VideoData.DLButton.a + VideoData.DLButton.b + label + VideoData.DLButton.c);
     }
 
     ////////////////////////////////////////////////////////////////////////
@@ -458,13 +469,17 @@ class NicoDownloaderClass {
         // 進捗の数値だけが変わってもSVGを作り直さず、回転を継続する。
         if (button.dataset.ndlStatus === status) return;
         button.dataset.ndlStatus = status;
-        if (completed) {
-            button.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" aria-hidden="true" focusable="false" style="fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round"><circle cx="12" cy="12" r="9"/><path d="m8 12 3 3 5-6"/></svg>';
-        } else if (busy) {
-            button.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" aria-hidden="true" focusable="false" style="fill:none;stroke:currentColor;stroke-width:2.5"><circle cx="12" cy="12" r="8" opacity=".25"/><path d="M12 4a8 8 0 0 1 8 8"><animateTransform attributeName="transform" type="rotate" from="0 12 12" to="360 12 12" dur="0.8s" repeatCount="indefinite"/></path></svg>';
+        if (completed || busy) {
+            button.innerHTML = this.ButtonStatusIcon(status);
         } else if (button.dataset.ndlIdleIcon) {
             button.innerHTML = button.dataset.ndlIdleIcon;
         }
+    }
+
+    ButtonStatusIcon(status) {
+        if (status === "completed") return '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" aria-hidden="true" focusable="false" style="fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round"><circle cx="12" cy="12" r="9"/><path d="m8 12 3 3 5-6"/></svg>';
+        if (status === "busy") return '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" aria-hidden="true" focusable="false" style="fill:none;stroke:currentColor;stroke-width:2.5"><circle cx="12" cy="12" r="8" opacity=".25"/><path d="M12 4a8 8 0 0 1 8 8"><animateTransform attributeName="transform" type="rotate" from="0 12 12" to="360 12 12" dur="0.8s" repeatCount="indefinite"/></path></svg>';
+        return "";
     }
 
     LangSetting(lang) {
