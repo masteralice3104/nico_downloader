@@ -9,7 +9,7 @@
     VideoData.PlayerSettingClass : 設定ボタンのクラス名
     VideoData.SystemMessageClass : SystemMessageのクラス名
     //VideoData.SystemMessageQuery : SystemMessageのクエリ
-    VideoData.SystemMessageButtonExpr : システムメッセージを表示するボタンを評価する式
+    VideoData.SystemMessageButtonText : システムメッセージを表示するボタンの表示名
     VideoData.DLButton : ダウンロードボタンのCSSとかHTML
     VideoData.DLButton.a : ダウンロードボタンのHTMLの前半
     VideoData.DLButton.b : ダウンロードボタンのHTMLの中身
@@ -53,9 +53,8 @@ const VideoData = {
     //
     //上記クエリは廃止になりました
 
-    // システムメッセージを表示するボタンを評価する式
-    SystemMessageButtonExpr :'Array.from(document.querySelectorAll(\'button,[role="button"]\'))' +
-  '.find(function(el){return (el.textContent||"").trim()==="システムメッセージを表示";})',
+    // システムメッセージを表示するボタンの表示名
+    SystemMessageButtonText: 'システムメッセージを表示',
 
     // ダウンロードボタンのCSSとかHTML
     DLButton: {
@@ -497,11 +496,74 @@ class NicoDownloaderClass {
     */
     ////////////////////////////////////////////////////////////////////////
     SystemMessageAutoOpenToText() {
-        const js =
-            "new Promise(function(r){document.querySelector(" +
-            JSON.stringify(VideoData.PlayerSettingQuery) + // "[aria-label=\"設定\"]" などが安全に入る
-            ").click();r();})" +
-            ".then(function(){(" + VideoData.SystemMessageButtonExpr + ")?.click();});";
+        const open = async function (settingQuery, messageText) {
+            const key = "__nicoDownloaderOpeningSystemMessage";
+            if (window[key]) return;
+            window[key] = true;
+            const pageURL = location.href;
+            const isReady = (element) => {
+                if (!element || !element.isConnected || element.disabled ||
+                    element.getAttribute("aria-disabled") === "true" || !element.getClientRects().length) return false;
+                const style = getComputedStyle(element);
+                return style.visibility !== "hidden" && style.display !== "none" &&
+                    style.pointerEvents !== "none" && style.opacity !== "0";
+            };
+            const waitForButton = (find, label) => new Promise((resolve, reject) => {
+                let frame = null;
+                let previous = null;
+                let previousRect = "";
+                const finish = (error, element) => {
+                    clearTimeout(timer);
+                    if (frame !== null) cancelAnimationFrame(frame);
+                    if (error) reject(error);
+                    else resolve(element);
+                };
+                const timer = setTimeout(() => finish(new Error(label + "の表示待ちがタイムアウトしました")), 5000);
+                const check = () => {
+                    try {
+                        if (location.href !== pageURL) {
+                            finish(new Error("ページが切り替わったため操作を中止しました"));
+                            return;
+                        }
+                        const element = find();
+                        if (isReady(element)) {
+                            const rect = element.getBoundingClientRect();
+                            const position = [rect.x, rect.y, rect.width, rect.height].join(",");
+                            // 同じボタンの位置・大きさが次の描画でも安定してから操作する。
+                            if (element === previous && position === previousRect) {
+                                finish(null, element);
+                                return;
+                            }
+                            previous = element;
+                            previousRect = position;
+                        } else {
+                            previous = null;
+                        }
+                        frame = requestAnimationFrame(check);
+                    } catch (error) {
+                        finish(error);
+                    }
+                };
+                check();
+            });
+            const findMessage = () => Array.from(document.querySelectorAll('button,[role="button"]'))
+                .find((element) => (element.textContent || "").trim() === messageText && isReady(element));
+            try {
+                // 既に設定メニューが開いている場合、再クリックして閉じない。
+                if (!findMessage()) {
+                    const settings = await waitForButton(() => document.querySelector(settingQuery), "設定ボタン");
+                    settings.click();
+                }
+                const messages = await waitForButton(findMessage, "システムメッセージボタン");
+                messages.click();
+            } catch (error) {
+                console.warn("システムメッセージの表示に失敗しました:", error);
+            } finally {
+                delete window[key];
+            }
+        };
+        const js = "(" + open.toString() + ")(" + JSON.stringify(VideoData.PlayerSettingQuery) +
+            "," + JSON.stringify(VideoData.SystemMessageButtonText) + ");";
 
         // onclick=" ... " にそのまま入れるための完全なエスケープ
         return js
