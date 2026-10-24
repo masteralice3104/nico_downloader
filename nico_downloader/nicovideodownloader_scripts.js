@@ -14,6 +14,10 @@ async function VideoDown() {
     // ダウンロードリンクをクリック
     NicoDownloader.DownloadLinkClick();
 
+    // ショートはボタンを押した動画だけを開始する。保存リンクの処理は従来どおり。
+    const shortId = location.pathname.match(/^\/shorts\/(ss[0-9]+)\/?$/)?.[1];
+    if (shortId && shortsDownloadRequested !== shortId) return false;
+
     // 現在のページの動画IDを取得
     Nicovideo.video_sm = Nicovideo.VideoSmGet(NicoDownloader.MatchingSMIDArray);
     if (Nicovideo.video_sm == "") {
@@ -205,6 +209,34 @@ async function MovieDownload_domand(Nicovideo, NicoDownloader) {
 }
 
 
+let shortsDownloadRequested = null;
+
+function IsShortVideoPage() {
+    return location.origin === "https://www.nicovideo.jp" && /^\/shorts\/ss[0-9]+\/?$/.test(location.pathname);
+}
+
+// ショートの仮想リストでは先頭のカードが再生中とは限らない。画面内のカードを選ぶ。
+function ShortVideoControls() {
+    const list = document.querySelector('[class~="grid-area_[playlist-entries]"]');
+    if (!list) return null;
+    const viewport = list.getBoundingClientRect();
+    const controls = Array.from(list.querySelectorAll('[class~="z_forward"][class*="left_[calc("] > div > div:first-child'));
+    let selected = null;
+    let largest = 0;
+    for (const control of controls) {
+        const rect = control.getBoundingClientRect();
+        const area = Math.max(0, Math.min(rect.bottom, viewport.bottom, innerHeight) - Math.max(rect.top, viewport.top, 0)) *
+            Math.max(0, Math.min(rect.right, innerWidth) - Math.max(rect.left, 0));
+        if (area > largest) { selected = control; largest = area; }
+    }
+    return selected;
+}
+
+function DownloadButtonParent() {
+    return IsShortVideoPage() ? ShortVideoControls() :
+        document.getElementsByClassName(VideoData.Video_title_Element)[0];
+}
+
 let initialButtonObserverStarted = false;
 
 // 初期ボタンだけを描画する。動画取得・変換・保存は既存の定期処理が担当する。
@@ -221,12 +253,12 @@ function StartInitialButtonObserver() {
 
     const refresh = () => {
         domandPlaylistCapture.syncRoute();
-        const routeId = location.href.match(/^https:\/\/www\.nicovideo\.jp\/watch\/([^/?#]+)/)?.[1];
+        const routeId = domandPlaylistCapture.videoAt(location.href);
         if (!routeId) return;
-        const videoId = settings ? location.href.match(settings.video_pattern)?.[0] : routeId;
+        const videoId = IsShortVideoPage() ? routeId : settings ? location.href.match(settings.video_pattern)?.[0] : routeId;
         if (!videoId || NicovideoDownloader__NowDownloading ||
             NicovideoDownloader__LoadedVideoSMID === videoId) return;
-        const parent = document.getElementsByClassName(VideoData.Video_title_Element)[0];
+        const parent = DownloadButtonParent();
         if (!parent) return;
         let wrapper = document.getElementById(VideoData.Video_DLlink.p);
         if (wrapper && (!parent.contains(wrapper) || wrapper.dataset.ndlVideoId !== videoId)) {
@@ -284,6 +316,8 @@ function StartInitialButtonObserver() {
     window.addEventListener("nico-downloader-playlist-ready", schedule);
     window.addEventListener("popstate", schedule);
     window.addEventListener("hashchange", schedule);
+    window.navigation?.addEventListener("currententrychange", schedule);
+    document.addEventListener("scroll", schedule, { capture: true, passive: true });
     window.addEventListener("pagehide", () => {
         observing = false;
         observer.disconnect();
@@ -332,6 +366,7 @@ class DomandPlaylistCapture {
         this.queue = [];
         this.controllers = new Set();
         this.active = 0;
+        this.idleWaiters = [];
         this.closed = false;
         this.candidate = null;
         this.requested = null;
@@ -384,7 +419,9 @@ class DomandPlaylistCapture {
     videoAt(address) {
         try {
             const url = new URL(address);
-            return url.origin === "https://www.nicovideo.jp" ? url.pathname.match(/^\/watch\/([^/]+)\/?$/)?.[1] || null : null;
+            return url.origin === "https://www.nicovideo.jp" ?
+                url.pathname.match(/^\/watch\/([^/]+)\/?$/)?.[1] ||
+                url.pathname.match(/^\/shorts\/(ss[0-9]+)\/?$/)?.[1] || null : null;
         } catch (error) {
             return null;
         }
@@ -404,12 +441,14 @@ class DomandPlaylistCapture {
         this.route = this.videoAt(location.href);
         this.since = this.now();
         this.generation++;
+        shortsDownloadRequested = null;
         this.seen.clear();
         this.logged.clear();
         this.queue = [];
         this.candidate = null;
         this.requested = null;
         for (const controller of this.controllers) controller.abort();
+        for (const resolve of this.idleWaiters.splice(0)) resolve();
     }
 
     syncRoute() {
@@ -439,6 +478,9 @@ class DomandPlaylistCapture {
             this.verify(entry).finally(() => {
                 this.active--;
                 this.pump();
+                if (!this.active && !this.queue.length) {
+                    for (const resolve of this.idleWaiters.splice(0)) resolve();
+                }
             });
         }
     }
@@ -469,10 +511,17 @@ class DomandPlaylistCapture {
             if (this.closed || this.syncRoute() !== entry.route || this.generation !== entry.generation) {
                 return reject("ページ遷移または終了により取得結果を破棄しました。");
             }
-            if (!this.candidate || entry.startTime >= this.candidate.startTime) {
+            // ショートは後続動画を先読みするため、現在のページで最初に要求された親URLを保持する。
+            // 検証の完了順ではなくリクエスト開始時刻で選び、通常動画の選択方法は変えない。
+            const prefer = this.route?.startsWith("ss")
+                ? !this.candidate || entry.startTime < this.candidate.startTime
+                : !this.candidate || entry.startTime >= this.candidate.startTime;
+            if (prefer) {
                 this.candidate = { ...entry, checkedAt: this.now() };
                 console.log("[nico downloader] 親m3u8取得成功:", entry.url);
                 window.dispatchEvent(new Event("nico-downloader-playlist-ready"));
+            } else if (this.route?.startsWith("ss")) {
+                this.report("ショート先読み", "後から要求された親URLは採用しません。", entry.url);
             }
         } catch (error) {
             if (timedOut) reject("5秒以内に完了せずタイムアウトしました。");
@@ -491,8 +540,34 @@ class DomandPlaylistCapture {
             ? this.candidate : null;
     }
 
-    claim(event) {
+    async claim(event) {
+        const route = this.syncRoute();
+        if (IsShortVideoPage() && (NicovideoDownloader__NowDownloading || NicovideoDownloader__LoadedVideoSMID === route)) {
+            event.preventDefault();
+            event.stopImmediatePropagation();
+            return;
+        }
+        if (IsShortVideoPage() && (this.active || this.queue.length)) {
+            // 次の動画の検証だけが先に終わっていても、先行リクエストの確認を待つ。
+            const generation = this.generation;
+            const button = event.currentTarget;
+            event.preventDefault();
+            event.stopImmediatePropagation();
+            this.report("ショート選択", "取得中の親URLの確認を待ちます。");
+            await new Promise((resolve) => this.idleWaiters.push(resolve));
+            if (this.closed || this.syncRoute() !== route || this.generation !== generation) return;
+            const candidate = this.available();
+            if (candidate) {
+                shortsDownloadRequested = route;
+                this.requested = candidate;
+                console.log("[nico downloader] ショート保存対象:", route, candidate.url);
+            } else if (button?.isConnected) {
+                button.click(); // 確認が全て失敗した場合も、従来のメニュー取得へ自動で進む。
+            }
+            return;
+        }
         const candidate = this.available();
+        if (IsShortVideoPage()) shortsDownloadRequested = route;
         if (!candidate) {
             const reason = this.candidate ? "取得済みURLの有効期間（60秒）を過ぎています。" :
                 this.active || this.queue.length ? "検出したURLを確認中です。" :
@@ -505,6 +580,7 @@ class DomandPlaylistCapture {
         event.preventDefault();
         event.stopImmediatePropagation();
         this.requested = candidate; // 保存ボタンを押すまでダウンロード開始条件にしない。
+        if (IsShortVideoPage()) console.log("[nico downloader] ショート保存対象:", route, candidate.url);
     }
 
     requestedURL() {

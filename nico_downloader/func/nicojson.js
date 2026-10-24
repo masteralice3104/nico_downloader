@@ -41,7 +41,7 @@ class NicovideoClass {
 
     //URLがマッチするか確認
     CheckNicovideoWatchURL() {
-        if (location.href.match(/https:\/\/www.nicovideo.jp\/watch\//)) {
+        if (location.href.match(/^https:\/\/www\.nicovideo\.jp\/(?:watch\/[^/?#]+|shorts\/ss[0-9]+)(?:[/?#]|$)/)) {
             DebugPrint("location.href.match true");
             return true;
         }
@@ -53,6 +53,11 @@ class NicovideoClass {
     //jsonをダウンロード後jsonをセットし、その後各変数をセット
     async SetAllFromVideoSm(video_sm) {
         this.video_sm = video_sm;
+        // ショートはwatch APIへ送らず、未取得のタイトルは動画IDで補う。
+        if (/^ss[0-9]+$/.test(video_sm)) {
+            this.video_title = video_sm;
+            return;
+        }
 
         if (video_sm == Nicovideo______Ndl______DataLoadedSMID) {
             return new Promise((resolve, reject) => {
@@ -110,6 +115,7 @@ class NicovideoClass {
 
     //URLから動画idを取得
     VideoSmGet(match_sm) {
+        if (IsShortVideoPage()) return location.pathname.match(/^\/shorts\/(ss[0-9]+)\/?$/)[1];
         let video_sm = '';
         if (location.href.match(match_sm)) {
             video_sm = location.href.match(match_sm).toString();

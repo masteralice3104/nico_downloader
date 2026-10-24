@@ -345,7 +345,7 @@ class NicoDownloaderClass {
     */
     ////////////////////////////////////////////////////////////////////////
     ButtonFirstMake(video_sm) {
-        const parent = document.getElementsByClassName(VideoData.Video_title_Element)[0];
+        const parent = DownloadButtonParent();
         if (!parent) return false;
         let wrapper = document.getElementById(VideoData.Video_DLlink.p);
         if (wrapper && !parent.contains(wrapper)) {
@@ -358,10 +358,14 @@ class NicoDownloaderClass {
             wrapper.className = VideoData.Video_DLlink.div_class;
             parent.appendChild(wrapper);
         }
+        if (IsShortVideoPage()) {
+            wrapper.style.cssText = "display:flex;align-items:center;justify-content:center;align-self:center;width:100%;margin:0;padding:0;line-height:0";
+        }
         if (video_sm) wrapper.dataset.ndlVideoId = video_sm;
         if (!document.getElementById(VideoData.Video_DLlink.a)) {
             const content = document.createElement("a");
             content.id = VideoData.Video_DLlink.a;
+            if (IsShortVideoPage()) content.style.cssText = "display:flex;align-items:center;justify-content:center;margin:0;padding:0";
             content.innerText = "処理中";
             wrapper.appendChild(content);
         }
@@ -376,8 +380,17 @@ class NicoDownloaderClass {
     */
     ////////////////////////////////////////////////////////////////////////
     ButtonTextWrite(text) {
+        if (IsShortVideoPage()) {
+            const button = document.getElementById(VideoData.Video_DLlink.a)?.querySelector("button");
+            if (button) {
+                const label = this.LangText(text);
+                const busy = /処理中|処理開始|確認中|ダウンロード中|変換中|変換終了|まもなく保存完了|Processing|Downloading|Converting|Conversion finished|Saved soon/.test(label);
+                this.ShortButtonStatus(button, label, busy);
+                return;
+            }
+        }
         // 多言語対応
-        document.getElementById(VideoData.Video_DLlink.a).innerHTML = VideoData.DLButton.a + VideoData.DLButton.b + this.LangText(text) + VideoData.DLButton.c;
+        this.ButtonInnerHTMLWrite(VideoData.DLButton.a + VideoData.DLButton.b + this.LangText(text) + VideoData.DLButton.c);
         return;
     }
 
@@ -389,7 +402,26 @@ class NicoDownloaderClass {
     */
     ////////////////////////////////////////////////////////////////////////
     ButtonInnerHTMLWrite(innerHTML) {
-        document.getElementById(VideoData.Video_DLlink.a).innerHTML = innerHTML;
+        const content = document.getElementById(VideoData.Video_DLlink.a);
+        content.innerHTML = innerHTML;
+        if (IsShortVideoPage()) {
+            const button = content.querySelector("button");
+            if (button) {
+                const label = button.textContent.trim();
+                button.className = "Pressable cursor_pointer d_inline-flex ai_center jc_center p_x0_5 bdr_full fs_base fill_action.textOnBase hover:bg-c_action.baseHover disabled:fill_action.textOnBase_disabled disabled:pointer-events_none [&:disabled:hover]:bg-c_transparent [&_svg]:w_x3 [&_svg]:h_x3 w_x5 min-w_x5 h_x5 bg-c_action.base";
+                button.removeAttribute("style");
+                button.type = "button";
+                button.tabIndex = 0;
+                button.setAttribute("aria-label", "ダウンロード");
+                button.title = label;
+                button.querySelector("b")?.remove();
+                const svg = button.querySelector("svg");
+                if (svg) svg.removeAttribute("style");
+                button.style.cssText = "display:inline-flex;align-items:center;justify-content:center;flex-shrink:0;vertical-align:middle;margin:0";
+                button.dataset.ndlIdleIcon = button.innerHTML;
+                this.ShortButtonStatus(button, label, false);
+            }
+        }
         return true;
     }
 
@@ -400,6 +432,31 @@ class NicoDownloaderClass {
      * @returns {Boolean}
     */
     ////////////////////////////////////////////////////////////////////////
+    ShortButtonStatus(button, label, busy) {
+        const completed = label.trim() === this.LangText("保存完了").trim();
+        const status = completed ? "completed" : busy ? "busy" : "idle";
+        const displayLabel = completed ? "保存終了" : label;
+        button.title = displayLabel;
+        button.setAttribute("aria-label", completed || busy ? displayLabel : "ダウンロード：" + label);
+        button.setAttribute("aria-busy", String(busy && !completed));
+        button.disabled = busy || completed;
+        if (completed) {
+            button.style.setProperty("color", "#999");
+            button.style.setProperty("fill", "currentColor");
+            button.style.setProperty("background-color", "#333");
+        }
+        // 進捗の数値だけが変わってもSVGを作り直さず、回転を継続する。
+        if (button.dataset.ndlStatus === status) return;
+        button.dataset.ndlStatus = status;
+        if (completed) {
+            button.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" aria-hidden="true" focusable="false" style="fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round"><circle cx="12" cy="12" r="9"/><path d="m8 12 3 3 5-6"/></svg>';
+        } else if (busy) {
+            button.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" aria-hidden="true" focusable="false" style="fill:none;stroke:currentColor;stroke-width:2.5"><circle cx="12" cy="12" r="8" opacity=".25"/><path d="M12 4a8 8 0 0 1 8 8"><animateTransform attributeName="transform" type="rotate" from="0 12 12" to="360 12 12" dur="0.8s" repeatCount="indefinite"/></path></svg>';
+        } else if (button.dataset.ndlIdleIcon) {
+            button.innerHTML = button.dataset.ndlIdleIcon;
+        }
+    }
+
     LangSetting(lang) {
         this.LangSetting = lang;
         return;
@@ -426,6 +483,7 @@ class NicoDownloaderClass {
     */
     ////////////////////////////////////////////////////////////////////////
     CheckMainVideoPlayer() {
+        if (IsShortVideoPage()) return !!ShortVideoControls();
         if (document.querySelector("video").getAttribute('src') == null) {
             return false;
         }
@@ -607,12 +665,14 @@ class NicoDownloaderClass {
         this.ButtonInnerHTMLWrite(innerHTML);
         const wrapper = document.getElementById(VideoData.Video_DLlink.p);
         const capture = typeof domandPlaylistCapture !== "undefined" ? domandPlaylistCapture : null;
-        const ready = this.Savemode == "0" || !!capture?.available() || !!document.querySelector(VideoData.PlayerSettingQuery);
+        const ready = this.Savemode == "0" || IsShortVideoPage() || !!capture?.available() || !!document.querySelector(VideoData.PlayerSettingQuery);
         const button = document.getElementById(VideoData.Video_DLlink.a).querySelector("button");
         if (button) {
             button.disabled = !ready;
             if (this.Savemode != "0" && capture) {
-                button.addEventListener("click", (event) => capture.claim(event), { capture: true });
+                button.addEventListener("click", (event) => {
+                    capture.claim(event).catch((error) => console.error("m3u8選択に失敗しました:", error));
+                }, { capture: true });
             }
         }
         if (wrapper) {
