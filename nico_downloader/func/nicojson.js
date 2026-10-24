@@ -53,9 +53,9 @@ class NicovideoClass {
     //jsonをダウンロード後jsonをセットし、その後各変数をセット
     async SetAllFromVideoSm(video_sm) {
         this.video_sm = video_sm;
-        // ショートはwatch APIへ送らず、未取得のタイトルは動画IDで補う。
+        // ショートは表示中のカードからタイトルを取得し、既存の保存名設定に渡す。
         if (/^ss[0-9]+$/.test(video_sm)) {
-            this.video_title = video_sm;
+            this.video_title = this.GetPageTitle() || video_sm;
             return;
         }
 
@@ -139,9 +139,17 @@ class NicovideoClass {
         return this.GetWatchData(json).video ?? {};
     }
 
+    GetShortVideoTitle() {
+        // nth-childは固定しない。ボタンと同じ表示中カードの中だけを探す。
+        const controls = ShortVideoControls();
+        const card = controls?.closest('[class~="z_forward"][class*="left_[calc("]')?.parentElement;
+        return card?.querySelector('[class~="bottom_0"][class~="left_0"][class~="right_0"] .Pressable.fs_l.fw_bold.lc_1.m_0')?.textContent?.trim() || "";
+    }
+
     // JSONから動画タイトルを取得できない場合にページ上の表示から補う
     GetPageTitle() {
-        const candidates = [
+        // ショートでは先読みカードや前の動画のmeta情報を参照しない。
+        const candidates = IsShortVideoPage() ? [this.GetShortVideoTitle(), document.title] : [
             document.querySelector("h1")?.textContent,
             document.querySelector('meta[property="og:title"]')?.getAttribute("content"),
             document.querySelector('meta[name="twitter:title"]')?.getAttribute("content"),
