@@ -58,8 +58,8 @@ const VideoData = {
 
     // ダウンロードボタンのCSSとかHTML
     DLButton: {
-        a: "<button style='width:200px;height:56px;color: var(--colors-action-text-on-tertiary-azure);background-color: var(--colors-action-base);border-radius: var(--radii-m)'",
-        b: '"\'><b>',
+        a: "<button style='display:inline-flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;width:200px;height:56px;color: var(--colors-action-text-on-tertiary-azure);background-color: var(--colors-action-base);border-radius: var(--radii-m)'",
+        b: '"\'><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" class="w_font h_font" aria-hidden="true" focusable="false" style="display:block;flex-shrink:0;width:24px;height:24px;fill:currentColor"><path d="M11 2a1 1 0 0 0-1 1v8H6.5a.75.75 0 0 0-.53 1.28l5.32 5.32a1 1 0 0 0 1.42 0l5.32-5.32A.75.75 0 0 0 17.5 11H14V3a1 1 0 0 0-1-1h-2ZM3 16a1 1 0 0 0-1 1v3a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-3a1 1 0 1 0-2 0v3H4v-3a1 1 0 0 0-1-1Z"/></svg><b>',
         c: '</b>'
     },
 
