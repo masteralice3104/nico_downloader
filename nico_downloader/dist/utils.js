@@ -398,46 +398,50 @@ function Option_setLoading(name) {
 
 ////////////////////////////////////////////////////////////////////////
 /**
- * リトライ処理を含めたfetch　https://qiita.com/ksakiyama134/items/8cfb0cf96d8f7c7be5b3
+ * 通信失敗時に、指定回数を上限として再試行する。
  * @param {String} url ダウンロードするURL
  * @param {NicoDownloaderClass} NicoDownloader
  * @param {Object} options fetchのオプション
- * @param {Number} n リトライ回数
- * @returns {Object} fetch
+ * @param {Number} n 最大試行回数（初回を含む）
+ * @returns {Promise<Response>}
  */
 ////////////////////////////////////////////////////////////////////////
 async function fetch_retry(url, NicoDownloader, options, n) {
-  try {
-    DebugPrint("fetchurl: " + url);
-    let fetched = await fetch(url, options);
-    if (fetched.status === 200) {
-      return fetched;
-    } else {
-      DebugPrint("retry:" + url);
-      NicoDownloader.DownloadFaultNumberAdd();
-      sleep(1000);
-      return await fetch_retry(url, NicoDownloader, options, n - 1);
+  if (!Number.isInteger(n) || n < 1) {
+    throw new RangeError("最大試行回数は1以上の整数で指定してください。");
+  }
+  for (let attempt = 1; attempt <= n; attempt++) {
+    let failure;
+    try {
+      DebugPrint("fetchurl: " + url);
+      const response = await fetch(url, options);
+      if (response.status === 200) return response;
+      failure = new Error(`HTTP ${response.status}: ${url}`);
+      failure.status = response.status;
+    } catch (error) {
+      // 明示的な中断を通信失敗として再試行しない。
+      if (error?.name === "AbortError" || options?.signal?.aborted) throw error;
+      failure = error;
     }
-  } catch (err) {
-    NicoDownloader.DownloadFaultNumberAdd();
-    sleep(1000);
-    DebugPrint("retry:" + url);
-    if (n === 1) throw err;
-    return await fetch_retry(url, NicoDownloader, options, n - 1);
+    NicoDownloader.DownloadFaultNumAdd();
+    if (attempt === n) {
+      console.warn(`[nico downloader] 通信失敗: 最大試行回数（${n}回）に達しました。`, url, failure);
+      throw failure;
+    }
+    console.warn(`[nico downloader] 通信失敗: 1秒後に再試行します（${attempt}/${n}回）。`, url, failure);
+    await sleep(1000);
   }
 }
 
 ////////////////////////////////////////////////////////////////////////
 /**
- * スリープ関数　https://www.sejuku.net/blog/24629
- * @param {Number} waitMsec スリープ時間
+ * 描画や他の通信を止めずに待機する。
+ * @param {Number} waitMsec 待機時間（ミリ秒）
+ * @returns {Promise<void>}
  */
 ////////////////////////////////////////////////////////////////////////
 function sleep(waitMsec) {
-  var startMsec = new Date();
-
-  // 指定ミリ秒間だけループさせる（CPUは常にビジー状態）
-  while (new Date() - startMsec < waitMsec);
+  return new Promise((resolve) => setTimeout(resolve, waitMsec));
 }
 
 ////////////////////////////////////////////////////////////////////////
