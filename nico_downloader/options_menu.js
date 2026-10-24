@@ -2,6 +2,7 @@
 const optionDefaults = {
     video_downloading: "0",
     video_pattern: "sm[0-9]{1,}",
+    shorts_video_pattern: "ss[0-9]{1,}",
     video_autosave: "0",
     video_hlssave: "0",
     debug: "0",
@@ -60,7 +61,7 @@ function UpdateFilenamePreview() {
 }
 
 function OptionsChanged() {
-    document.getElementById("video_pattern").setCustomValidity("");
+    for (const name of ["video_pattern", "shorts_video_pattern"]) document.getElementById(name).setCustomValidity("");
     UpdateFilenamePreview();
     if (!optionsBusy && savedOptions) {
         const dirty = JSON.stringify(ReadOptionsForm()) !== JSON.stringify(savedOptions);
@@ -72,17 +73,19 @@ function Options_Save(event) {
     event?.preventDefault();
     if (optionsBusy || !savedOptions || !OptionsAcknowledged()) return;
     const values = ReadOptionsForm();
-    const pattern = document.getElementById("video_pattern");
-    try {
-        if (!values.video_pattern.trim()) throw new Error("empty pattern");
-        new RegExp(values.video_pattern);
-    } catch (error) {
-        document.getElementById("advanced").open = true;
-        pattern.setCustomValidity("有効な正規表現を入力してください。");
-        pattern.reportValidity();
-        pattern.focus();
-        ShowOptionsStatus("URL判別パターンを確認してください。", true);
-        return;
+    for (const [name, label] of [["video_pattern", "通常動画"], ["shorts_video_pattern", "ショート"]]) {
+        const pattern = document.getElementById(name);
+        try {
+            if (!values[name].trim()) throw new Error("empty pattern");
+            new RegExp(values[name]);
+        } catch (error) {
+            document.getElementById("advanced").open = true;
+            pattern.setCustomValidity("有効な正規表現を入力してください。");
+            pattern.reportValidity();
+            pattern.focus();
+            ShowOptionsStatus(label + "のURL判別パターンを確認してください。", true);
+            return;
+        }
     }
     SetOptionsBusy(true);
     ShowOptionsStatus("保存中…");
@@ -92,20 +95,35 @@ function Options_Save(event) {
         console.error("設定の保存に失敗しました:", error);
     };
     try {
-        chrome.storage.local.set({ ...values, newloading: "1" }, () => {
+        chrome.storage.local.set({ ...values, newloading: "1", guide_acknowledged: "1" }, () => {
             if (chrome.runtime.lastError) {
                 onError(chrome.runtime.lastError.message);
                 return;
             }
-            // 動画ページで使うキーと値は従来のまま。ローカルの控えも同期する。
+            // 書き込み通知だけで成功扱いにせず、実際の保存値を読み戻す。
+            const expected = { ...values, newloading: "1", guide_acknowledged: "1" };
             try {
-                for (const [name, value] of Object.entries({ ...values, newloading: "1" })) localStorage.setItem(name, value);
+                chrome.storage.local.get(Object.keys(expected), (stored) => {
+                    if (chrome.runtime.lastError) {
+                        onError(chrome.runtime.lastError.message);
+                        return;
+                    }
+                    if (Object.keys(expected).some((name) => stored[name] !== expected[name])) {
+                        onError(new Error("書き込み後の設定値が一致しません。"));
+                        return;
+                    }
+                    try {
+                        for (const [name, value] of Object.entries(expected)) localStorage.setItem(name, value);
+                    } catch (error) {
+                        console.warn("設定のローカル控えを更新できませんでした:", error);
+                    }
+                    savedOptions = values;
+                    SetOptionsBusy(false);
+                    ShowOptionsStatus("設定を保存しました。");
+                });
             } catch (error) {
-                console.warn("設定のローカル控えを更新できませんでした:", error);
+                onError(error);
             }
-            savedOptions = values;
-            SetOptionsBusy(false);
-            ShowOptionsStatus("設定を保存しました。");
         });
     } catch (error) {
         onError(error);
@@ -137,7 +155,6 @@ function InitializeOptions() {
             else ShowOptionsStatus("先に上の使い方を確認してください。");
         }
     });
-    if (location.hash && location.hash !== "#help") location.hash = "#help";
     document.getElementById("form").addEventListener("submit", Options_Save);
     document.getElementById("form").addEventListener("input", OptionsChanged);
     document.getElementById("form").addEventListener("change", OptionsChanged);
@@ -150,16 +167,19 @@ function InitializeOptions() {
         console.error("設定の読み込みに失敗しました:", error);
     };
     try {
-        chrome.storage.local.get(optionDefaults, (values) => {
+        chrome.storage.local.get({ ...optionDefaults, guide_acknowledged: "0" }, (values) => {
             if (chrome.runtime.lastError) {
                 onError(chrome.runtime.lastError.message);
                 return;
             }
             for (const name of Object.keys(optionDefaults)) WriteOptionControl(name, values[name]);
             savedOptions = ReadOptionsForm();
+            acknowledgement.checked = String(values.guide_acknowledged) === "1";
             UpdateFilenamePreview();
             SetOptionsBusy(false);
-            ShowOptionsStatus("先に上の使い方を確認してください。");
+            if (!OptionsAcknowledged() && location.hash && location.hash !== "#help") location.hash = "#help";
+            UpdateOptionsNavigation();
+            ShowOptionsStatus(OptionsAcknowledged() ? "設定を変更したら保存してください。" : "先に上の使い方を確認してください。");
         });
     } catch (error) {
         onError(error);

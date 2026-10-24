@@ -41,6 +41,7 @@ class NicovideoClass {
 
     //URLがマッチするか確認
     CheckNicovideoWatchURL() {
+        if (location.pathname.startsWith("/shorts/")) return IsShortVideoPage();
         if (location.href.match(/^https:\/\/www\.nicovideo\.jp\/(?:watch\/[^/?#]+|shorts\/ss[0-9]+)(?:[/?#]|$)/)) {
             DebugPrint("location.href.match true");
             return true;
@@ -115,7 +116,7 @@ class NicovideoClass {
 
     //URLから動画idを取得
     VideoSmGet(match_sm) {
-        if (IsShortVideoPage()) return location.pathname.match(/^\/shorts\/(ss[0-9]+)\/?$/)[1];
+        if (location.pathname.startsWith("/shorts/")) return ShortVideoId() || "";
         let video_sm = '';
         if (location.href.match(match_sm)) {
             video_sm = location.href.match(match_sm).toString();

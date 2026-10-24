@@ -15,7 +15,7 @@ async function VideoDown() {
     NicoDownloader.DownloadLinkClick();
 
     // ショートはボタンを押した動画だけを開始する。保存リンクの処理は従来どおり。
-    const shortId = location.pathname.match(/^\/shorts\/(ss[0-9]+)\/?$/)?.[1];
+    const shortId = ShortVideoId();
     if (shortId && shortsDownloadRequested !== shortId) return false;
 
     // 現在のページの動画IDを取得
@@ -210,9 +210,20 @@ async function MovieDownload_domand(Nicovideo, NicoDownloader) {
 
 
 let shortsDownloadRequested = null;
+let shortVideoPattern = "ss[0-9]{1,}";
+
+function ShortVideoId(address = location.href, pattern = shortVideoPattern) {
+    try {
+        const url = new URL(address);
+        const id = url.origin === "https://www.nicovideo.jp" ? url.pathname.match(/^\/shorts\/(ss[0-9]+)\/?$/)?.[1] : null;
+        return id && new RegExp("^(?:" + pattern + ")$").test(id) ? id : null;
+    } catch (error) {
+        return null;
+    }
+}
 
 function IsShortVideoPage() {
-    return location.origin === "https://www.nicovideo.jp" && /^\/shorts\/ss[0-9]+\/?$/.test(location.pathname);
+    return !!ShortVideoId();
 }
 
 // ショートの仮想リストでは先頭のカードが再生中とは限らない。画面内のカードを選ぶ。
@@ -254,7 +265,10 @@ function StartInitialButtonObserver() {
     const refresh = () => {
         domandPlaylistCapture.syncRoute();
         const routeId = domandPlaylistCapture.videoAt(location.href);
-        if (!routeId) return;
+        if (!routeId) {
+            if (!NicovideoDownloader__NowDownloading) document.getElementById(VideoData.Video_DLlink.p)?.remove();
+            return;
+        }
         const videoId = IsShortVideoPage() ? routeId : settings ? location.href.match(settings.video_pattern)?.[0] : routeId;
         if (!videoId || NicovideoDownloader__NowDownloading ||
             NicovideoDownloader__LoadedVideoSMID === videoId) return;
@@ -329,30 +343,45 @@ function StartInitialButtonObserver() {
         observe();
         schedule();
     });
-    chrome.storage.local.get({
-        video_pattern: "sm[0-9]+", video_hlssave: "0", language_setting: "ja",
-        downFile_setting: "mp4",
-    }, (value) => {
-        if (chrome.runtime.lastError) {
-            console.warn("初期ボタンの設定取得に失敗しました:", chrome.runtime.lastError.message);
-            return;
-        }
-        const pattern = !value.video_pattern || value.video_pattern === "0"
-            ? "sm[0-9]+" : String(value.video_pattern);
-        try {
-            new RegExp(pattern);
-        } catch (error) {
-            console.warn("初期ボタンの動画IDパターンが不正です:", error);
-            return;
-        }
-        settings = {
-            video_pattern: pattern,
-            video_hlssave: String(value.video_hlssave ?? "0"),
-            language_setting: value.language_setting === "en" ? "en" : "ja",
-            downFile_setting: String(value.downFile_setting || "mp4"),
-        };
-        schedule();
+    const defaults = {
+        video_pattern: "sm[0-9]+", shorts_video_pattern: "ss[0-9]{1,}",
+        video_hlssave: "0", language_setting: "ja", downFile_setting: "mp4",
+    };
+    let settingsRequest = 0;
+    const loadSettings = () => {
+        const request = ++settingsRequest;
+        chrome.storage.local.get(defaults, (value) => {
+            if (request !== settingsRequest) return;
+            if (chrome.runtime.lastError) {
+                console.warn("初期ボタンの設定取得に失敗しました:", chrome.runtime.lastError.message);
+                return;
+            }
+            const pattern = !value.video_pattern || value.video_pattern === "0"
+                ? defaults.video_pattern : String(value.video_pattern);
+            const shortPattern = !value.shorts_video_pattern || value.shorts_video_pattern === "0"
+                ? defaults.shorts_video_pattern : String(value.shorts_video_pattern);
+            try {
+                new RegExp(pattern);
+                new RegExp("^(?:" + shortPattern + ")$");
+            } catch (error) {
+                console.warn("動画IDパターンが不正です:", error);
+                return;
+            }
+            shortVideoPattern = shortPattern;
+            settings = {
+                video_pattern: pattern,
+                video_hlssave: String(value.video_hlssave ?? "0"),
+                language_setting: value.language_setting === "en" ? "en" : "ja",
+                downFile_setting: String(value.downFile_setting || "mp4"),
+            };
+            domandPlaylistCapture.syncRoute();
+            schedule();
+        });
+    };
+    chrome.storage.onChanged.addListener((changes, area) => {
+        if (area === "local" && Object.keys(defaults).some((name) => name in changes)) loadSettings();
     });
+    loadSettings();
 }
 
 
@@ -421,7 +450,7 @@ class DomandPlaylistCapture {
             const url = new URL(address);
             return url.origin === "https://www.nicovideo.jp" ?
                 url.pathname.match(/^\/watch\/([^/]+)\/?$/)?.[1] ||
-                url.pathname.match(/^\/shorts\/(ss[0-9]+)\/?$/)?.[1] || null : null;
+                ShortVideoId(address) || null : null;
         } catch (error) {
             return null;
         }

@@ -4,7 +4,8 @@ LocalStorageで保存される値について
 キー                 デフォルト値               内容
 "newloading"            undefined           一度でも設定したことがあるか？
 "video_downloading"     0                   デフォルト保存名設定
-"video_pattern"         sm[0-9]{1,}         反応するURL設定名
+"video_pattern"         sm[0-9]{1,}         通常動画のURL判別パターン
+"shorts_video_pattern"  ss[0-9]{1,}         ショートのURL判別パターン
 "video_autosave"        0                   1だと自動で保存処理が走ります
 "video_hlssave"         0                   0だと初期設定、1だと低速、2だと高速モード
 "debug"                 0                   1だとデバッグ出力あり
@@ -77,6 +78,7 @@ function defalt_dataWrite() {
     Option_setWriting("newloading", "1");
     Option_setWriting("video_downloading", "0");
     Option_setWriting("video_pattern", "sm[0-9]{1,}");
+    Option_setWriting("shorts_video_pattern", "ss[0-9]{1,}");
     Option_setWriting("video_autosave", "0");
     Option_setWriting("debug", "0");
     Option_setWriting("video_hlssave", "0");
@@ -92,6 +94,7 @@ function Options_onload() {
     try {
         LoadOption("video_downloading");
         LoadOption("video_pattern");
+        LoadOption("shorts_video_pattern");
         LoadOption("video_autosave");
         LoadOption("video_hlssave");
         LoadOption("debug");
