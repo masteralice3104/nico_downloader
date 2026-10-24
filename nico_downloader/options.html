@@ -1,286 +1,81 @@
 <!DOCTYPE html>
 <html lang="ja">
-
 <head>
   <meta charset="UTF-8">
-  <meta http-equiv="origin-trial" content="AoZPFf9x/3+yZ6RSdPSPyGl1KQX+FKis9ohVYVYJYcjg6lVRQ3vR73IJ71BW32lf/DUgO+aSbTXJu1CYj5EFiQoAAAB+eyJvcmlnaW4iOiJjaHJvbWUtZXh0ZW5zaW9uOi8vZG5jamNhZHBvYWtlZmpwbmFiaW1wYWxlbmxpZWhiaWciLCJmZWF0dXJlIjoiVW5yZXN0cmljdGVkU2hhcmVkQXJyYXlCdWZmZXIiLCJleHBpcnkiOjE2NTg4Nzk5OTl9">
-
-  <meta http-equiv="X-UA-Compatible" content="IE=edge">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light dark">
   <title>設定 － nico downloader</title>
   <style>
-    body {
-      font-family: Arial, sans-serif;
-      background-color: #f2f2f2;
-      margin: 0;
-      padding: 0;
-      width: 800px;
-      margin: auto;
-
-    }
-
-    .container {
-      text-align: center;
-      margin-top: 50px;
-      font-size: 32px;
-      color: #007bff;
-
-    }
-
-    form {
-      margin-top: 20px;
-      padding: 20px;
-      background-color: #fff;
-      border-radius: 5px;
-      box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
-
-    }
-
-    label {
-      font-weight: bold;
-
-    }
-
-    select {
-      width: 350px;
-      padding: 5px;
-      border-radius: 5px;
-      border: 1px solid #ccc;
-
-    }
-
-    button {
-      padding: 10px 20px;
-      background-color: #007bff;
-      color: #fff;
-      border: none;
-      border-radius: 5px;
-      cursor: pointer;
-    }
-
-    button:hover {
-      background-color: #0056b3;
-
-    }
-
-    #saved {
-      margin-top: 20px;
-      font-weight: bold;
-    }
-
-    a {
-      color: #007bff;
-      text-decoration: none;
-    }
-
-    a:hover {
-      text-decoration: underline;
-    }
-
-    #version {
-      margin-top: 20px;
-    }
-
-    .stylish-div {
-      padding: 10px;
-      margin-bottom: 10px;
-      border: 10px solid #ff0000;
-      border-radius: 20px;
-      border: 2px solid red;
-      box-shadow: 0 0 10px red;
-    }
-
-    nav {
-      position: fixed;
-      top: 0;
-      left: 0;
-      width: 100%;
-      background-color: dimgray;
-      color: white;
-      padding: 10px;
-      font-size: 24px;
-    }
-
-    nav ul {
-      list-style-type: none;
-      margin: 0;
-      padding: 0;
-      display: flex;
-      justify-content: space-around;
-    }
-
-    nav ul li {
-      display: inline;
-    }
-
-    nav ul li a {
-      color: white;
-      text-decoration: none;
-      padding: 10px;
-    }
-
-    nav ul li a:hover {
-      background-color: gray;
-    }
+    :root{color-scheme:light;--primary:#4355b9;--on-primary:#fff;--primary-container:#e0e3ff;--on-container:#192565;--surface:#faf9ff;--surface-container:#f0eff7;--paper:#fff;--text:#1b1b23;--muted:#5b5d6d;--outline:#777989;--line:#dedee9;--error:#ba1a1a;--focus:#4355b9;font-family:Roboto,"Noto Sans JP","Yu Gothic UI",Meiryo,sans-serif;font-size:14px;line-height:1.6;background:var(--surface);color:var(--text)}
+    *{box-sizing:border-box}body{margin:0}button,input,select{font:inherit}button,a,input,select,summary{-webkit-tap-highlight-color:transparent}button,a,summary{touch-action:manipulation}a{color:var(--primary);text-underline-offset:3px}button:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible,summary:focus-visible{outline:3px solid var(--focus);outline-offset:4px}button{cursor:pointer}button:disabled{cursor:default;opacity:.45}svg{width:24px;height:24px;flex-shrink:0;fill:currentColor}.skip{position:absolute;top:-80px;left:16px;background:var(--paper);padding:12px;z-index:5}.skip:focus{top:12px}
+    .app-bar{height:72px;display:flex;align-items:center;gap:12px;padding:0 32px;border-bottom:1px solid var(--line);background:var(--paper)}.brand-icon{display:grid;place-items:center;width:40px;height:40px;border-radius:12px;background:var(--primary-container);color:var(--primary)}.brand{font-size:18px;font-weight:600;letter-spacing:.1px}.app-bar small{margin-left:auto;color:var(--muted)}
+    .layout{display:grid;grid-template-columns:200px minmax(0,760px);gap:40px;max-width:1080px;padding:40px 24px 0;margin:auto}.navigation{position:sticky;top:24px;align-self:start;display:grid;gap:6px}.navigation a{display:flex;align-items:center;gap:12px;min-height:48px;padding:10px 20px;border-radius:28px;text-decoration:none;color:var(--muted);font-weight:500}.navigation a:hover{background:var(--surface-container);color:var(--text)}.navigation a[aria-current="location"]{background:var(--primary-container);color:var(--on-container)}.navigation svg{width:20px;height:20px}main{min-width:0;padding-bottom:140px}h1{font-size:32px;line-height:1.25;font-weight:500;margin:0 0 12px}h2{font-size:20px;line-height:1.4;font-weight:500;margin:0}p{margin:0}.intro{color:var(--muted);margin-bottom:28px}.notice{display:flex;align-items:flex-start;gap:12px;background:var(--primary-container);color:var(--on-container);padding:20px;border-radius:16px;margin-bottom:28px}.notice strong{display:block;margin-bottom:4px;font-weight:600}.notice p{font-size:13px}.settings-panel{border:1px solid var(--line);border-radius:20px;background:var(--paper);overflow:hidden}fieldset{border:0;margin:0;padding:0;min-width:0}.section{padding:28px;scroll-margin-top:24px}.section+.section{border-top:1px solid var(--line)}.section-description{color:var(--muted);font-size:13px;margin:6px 0 24px}.row{display:flex;justify-content:space-between;align-items:center;gap:24px}.row-label{font-size:16px;font-weight:500}.support{font-size:13px;color:var(--muted);margin-top:4px}.fields{display:grid;grid-template-columns:1fr 1fr;gap:24px}.field{position:relative;min-width:0}.field label{position:absolute;top:-10px;left:12px;background:var(--paper);padding:0 5px;font-size:12px;color:var(--muted)}select,input[type=text]{width:100%;height:56px;padding:12px 16px;background:var(--paper);color:var(--text);border:1px solid var(--outline);border-radius:4px}select{padding-right:32px}select:hover,input[type=text]:hover{border-color:var(--text)}.field:focus-within label{color:var(--primary)}select:focus,input[type=text]:focus{border:2px solid var(--primary);outline:none;padding-left:15px}input:invalid{border-color:var(--error)}.field .support{padding-left:16px}.full{grid-column:1/-1}
+    .switch{position:relative;display:inline-flex;align-items:center;flex-shrink:0;width:52px;height:32px}.switch input{position:absolute;inset:0;width:100%;height:100%;margin:0;opacity:0;cursor:pointer;z-index:1}.switch-track{display:flex;align-items:center;width:52px;height:32px;border:2px solid var(--outline);border-radius:20px;background:var(--surface-container);transition:background .15s,border-color .15s}.switch-track:before{content:"";width:16px;height:16px;margin-left:6px;border-radius:50%;background:var(--outline);transition:transform .15s,width .15s,height .15s}.switch input:checked+.switch-track{background:var(--primary);border-color:var(--primary)}.switch input:checked+.switch-track:before{width:24px;height:24px;margin-left:2px;background:var(--on-primary);transform:translateX(20px)}.switch input:focus-visible+.switch-track{outline:3px solid var(--focus);outline-offset:4px}.switch input:disabled{cursor:default}.switch input:disabled+.switch-track{opacity:.45}
+    .spacer{margin-top:28px}.preview{margin-top:24px;padding:16px 20px;background:var(--surface-container);border-radius:12px}.preview-label{color:var(--muted);font-size:12px;display:block;margin-bottom:6px}#filename_preview{font-family:ui-monospace,Consolas,monospace;font-size:14px;overflow-wrap:anywhere}.advanced{padding:0}.advanced summary{padding:24px 28px;cursor:pointer;font-size:16px;font-weight:500}.advanced-content{padding:0 28px 28px}.advanced .row{margin-top:28px}.url-prefix{font-size:12px;color:var(--muted);margin-bottom:18px;overflow-wrap:anywhere}
+    .help{margin-top:32px;scroll-margin-top:24px}.help h2{margin-bottom:16px}.help ol{padding-left:24px;color:var(--muted)}.help li{padding-left:4px;margin-bottom:10px}.help details{border-top:1px solid var(--line);padding:16px 0}.help summary{cursor:pointer;color:var(--primary);font-weight:500}.help details p{color:var(--muted);margin:12px 0}.footer{display:flex;justify-content:space-between;flex-wrap:wrap;gap:12px;margin-top:24px;padding-top:20px;border-top:1px solid var(--line);font-size:12px;color:var(--muted)}.footer-links{display:flex;gap:20px}.action-bar{position:fixed;inset:auto 0 0;background:var(--paper);border-top:1px solid var(--line);z-index:2}.actions{display:flex;align-items:center;gap:12px;max-width:1080px;margin:auto;padding:16px 24px}.save-state{flex:1;min-width:0;color:var(--muted);font-size:13px;overflow-wrap:anywhere}.save-state[data-state=error]{color:var(--error)}button.action{min-height:44px;padding:10px 24px;border-radius:24px;font-weight:600;border:1px solid transparent;white-space:nowrap}.primary{background:var(--primary);color:var(--on-primary)}.secondary{background:transparent;color:var(--primary);border-color:var(--outline)!important}.primary:hover:not(:disabled){filter:brightness(.93)}.secondary:hover:not(:disabled){background:var(--primary-container)}
+    @media(prefers-color-scheme:dark){:root{color-scheme:dark;--primary:#bcc3ff;--on-primary:#12236f;--primary-container:#2c3d91;--on-container:#e0e3ff;--surface:#121318;--surface-container:#24252e;--paper:#1b1c23;--text:#e5e1ec;--muted:#c5c5d5;--outline:#9090a1;--line:#444653;--error:#ffb4ab;--focus:#bcc3ff}}
+    @media(max-width:800px){.layout{grid-template-columns:minmax(0,1fr);max-width:760px;gap:24px;padding-top:24px}.navigation{position:static;display:flex;overflow-x:auto;gap:4px}.navigation a{white-space:nowrap;padding:8px 16px;min-height:40px}.navigation svg{display:none}.app-bar{padding:0 24px;height:64px}.app-bar small{display:none}.actions{max-width:760px}h1{font-size:28px}}
+    @media(max-width:480px){.layout{padding-left:16px;padding-right:16px}.app-bar{padding:0 16px}.fields{grid-template-columns:1fr;gap:24px}.section{padding:24px 20px}.advanced summary{padding:20px}.advanced-content{padding:0 20px 24px}.notice{padding:16px}.row{gap:16px}.actions{padding:12px 16px;flex-wrap:wrap;gap:8px}.save-state{flex-basis:100%}button.action{flex:1}.navigation a{padding:8px 14px}}
+    @media(prefers-reduced-motion:reduce){*{transition:none!important;scroll-behavior:auto!important}}
+    .help{margin:0 0 36px;padding:28px;border:2px solid #b3261e;border-left-width:8px;border-radius:20px;background:#fff0ed;color:#601410;scroll-margin-top:20px}.guide-required{display:inline-block;background:#b3261e;color:#fff;padding:5px 12px;border-radius:6px;font-size:13px;font-weight:700;letter-spacing:.08em}.help h2{font-size:26px;font-weight:700;line-height:1.5;margin:14px 0 10px}.guide-intro{font-size:15px;font-weight:600}.help ol{list-style:none;counter-reset:steps;padding:0;margin:24px 0;color:inherit}.help li{position:relative;counter-increment:steps;padding:0 0 0 44px;margin:0 0 20px;min-height:32px;font-size:15px;line-height:1.8}.help li:before{content:counter(steps);position:absolute;top:0;left:0;display:grid;place-items:center;width:30px;height:30px;border-radius:50%;background:#b3261e;color:#fff;font-weight:700}.help details{border-color:currentColor;padding:16px 0}.help details p,.help summary{color:inherit}.guide-confirm{display:flex;align-items:center;gap:14px;min-height:64px;padding:16px;border:2px solid #b3261e;border-radius:12px;background:var(--paper);color:var(--text);font-size:15px;font-weight:700;cursor:pointer}.guide-confirm input{width:22px;height:22px;flex-shrink:0;margin:0;accent-color:var(--primary)}.guide-confirm:has(input:disabled){opacity:.65;cursor:wait}
+    @media(prefers-color-scheme:dark){.help{background:#381813;color:#ffdad4;border-color:#ffb4ab}.guide-required,.help li:before{background:#ffb4ab;color:#601410}.guide-confirm{border-color:#ffb4ab}}
+    @media(max-width:480px){.help{padding:20px 16px}.help h2{font-size:22px}.help li{padding-left:40px}.guide-confirm{padding:14px 12px}}
+    .advanced{margin-top:12px;padding:0;border:0;background:transparent}.advanced summary{padding:8px 0;font-size:12px;font-weight:400;color:var(--muted)}.advanced summary:hover{color:var(--text)}.advanced-content{padding:20px 0 8px}.advanced .field label{background:var(--surface)}
   </style>
 </head>
-
-<nav>
-  <ul>
-    <li>nico downloader</li>
-    <li><a href="#setting">設定</a></li>
-  </ul>
-</nav>
-
 <body>
-  <br><br><br><br>
-  <div class="tab_container">
+  <a class="skip" href="#setting">設定へ移動</a>
+  <header class="app-bar">
+    <span class="brand-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M11 3h2v9l3.5-3.5 1.4 1.4L12 15.8l-5.9-5.9 1.4-1.4L11 12V3ZM4 17h2v3h12v-3h2v3a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2v-3Z"/></svg></span>
+    <span class="brand">nico downloader</span><small>自分に合った保存設定に。</small>
+  </header>
+  <div class="layout">
+    <nav class="navigation" aria-label="設定の項目">
+      <a href="#help"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20Zm1 16h-2v-2h2v2Zm1.1-7.4c-.8.6-1.1.9-1.1 2.4h-2c0-2.2.6-2.9 1.9-3.8.7-.5 1.1-.9 1.1-1.5a2 2 0 0 0-4 0H8a4 4 0 0 1 8 0c0 1.5-.9 2.3-1.9 2.9Z"/></svg>使い方</a>
+      <a href="#download"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M11 3h2v9l3.5-3.5 1.4 1.4L12 15.8l-5.9-5.9 1.4-1.4L11 12V3ZM4 17h2v3h12v-3h2v3a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2v-3Z"/></svg>保存</a>
+      <a href="#display"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 4h18v14h-8v2h4v2H7v-2h4v-2H3V4Zm2 2v10h14V6H5Z"/></svg>表示</a>
+    </nav>
+    <main id="setting">
+      <section class="help" id="help" aria-labelledby="help-heading">
+        <span class="guide-required">必ずお読みください</span>
+        <h2 id="help-heading">設定の前に、使い方を確認してください</h2>
+        <p class="guide-intro" id="guide-lock-hint">以下の手順を確認してチェックを入れるまで、設定の変更・保存はできません。</p>
+        <ol><li><strong>「初期設定モード」をオフにして、設定を保存します。</strong><br>オンのままではダウンロードできません。</li><li>動画ページの保存ボタン、またはショートのダウンロードアイコンを押します。</li><li>ダウンロードと変換が終わるまで待ちます。</li><li>Chromeの設定に応じて、自動保存または保存先の選択画面が表示されます。</li></ol>
+        <details id="system_message_open"><summary id="system_message_open_button">取得できないときは</summary><p>通常動画では、プレイヤーの「設定」から「システムメッセージを表示」を開くと取得できる場合があります。</p></details>
+        <label class="guide-confirm" for="guide_acknowledged"><input type="checkbox" id="guide_acknowledged" aria-describedby="guide-lock-hint" disabled><span>使い方を確認しました。設定に進みます。</span></label>
+      </section>
+      <h1>設定</h1><p class="intro">保存形式やファイル名、動画ページの表示を変更できます。</p>
+      <form id="form" novalidate>
+        <fieldset id="settings_fields" disabled aria-label="ダウンロード設定">
+          <div class="settings-panel">
+            <section class="section" id="download" aria-labelledby="download-heading">
+              <h2 id="download-heading">保存</h2><p class="section-description">動画・ショートの保存方法を設定します。</p>
+              <div class="fields">
+                <div class="field"><label for="downFile_setting">保存形式</label><select name="downFile_setting" id="downFile_setting"><option value="mp4" selected>MP4（動画）</option><option value="aac">AAC（音声のみ）</option></select></div>
+                <div class="field"><label for="video_downloading">ファイル名</label><select name="video_downloading" id="video_downloading"><option value="0" selected>動画番号</option><option value="1">動画タイトル</option><option value="2">動画番号_動画タイトル</option><option value="3">動画タイトル_動画番号</option></select></div>
+              </div>
+              <div class="preview"><span class="preview-label">ファイル名のプレビュー</span><output id="filename_preview" for="video_downloading downFile_setting">sm12345678.mp4</output></div>
+              <div class="row spacer"><div><label class="row-label" for="video_hlssave">初期設定モード</label><p class="support" id="setup-help">オンの間は案内を表示します。ダウンロードするときはオフにしてください。</p></div><label class="switch"><input id="video_hlssave" name="video_hlssave" type="checkbox" role="switch" data-on="0" data-off="1" checked aria-describedby="setup-help"><span class="switch-track" aria-hidden="true"></span></label></div>
+            </section>
+            <section class="section" id="display" aria-labelledby="display-heading">
+              <h2 id="display-heading">表示</h2><p class="section-description">動画ページに表示するボタンやメッセージの言語です。</p>
+              <div class="fields"><div class="field"><label for="language_setting">表示言語</label><select id="language_setting" name="language_setting" aria-describedby="language-help"><option value="ja" selected>日本語</option><option value="en">English</option></select><p class="support" id="language-help">この設定画面は日本語で表示します。</p></div></div>
+            </section>
 
-    <div class="stylish-div">
-
-      <label><b>初期設定の仕方</b></label>
-      <p>1.下記「初期設定モード」をOFFにし、ページの一番下にある「保存」ボタンを押下します。</p>
-      <p>2.動画ページを開き、動画の右下あたりにある保存ボタンを押します。</p>
-      <p>3.しばらくダウンロードと変換処理に時間がかかります。</p>
-      <p>4.動画が保存されます。既定のフォルダに自動保存または保存ダイアログが表示されます。(Chromeの保存設定によります)</p>
-      <p></p>
-      <p></p>
-
-
-    </div>
-
-    <button id="system_message_open_button">システムメッセージを開きダウンロードする方法</button>
-    <div id="system_message_open" style="display: none;">
-      <p>注：この方法は変更がありボタンが効かなくなった際に有効な可能性があります。</p>
-      <p>1.動画ページを開き、動画の右下あたりにあるプレイヤーの設定ボタンを押します。</p>
-      <p>2.一番下にある「システムメッセージを開く」を押します。</p>
-      <p>3.ダウンロードが始まります。</p>
-    </div>
-    <div class="cont_1" id="setting">
-      <h1 class="container">設定</h1>
-
-      <form id="form">
-
-        <div>
-          <label><b>初期設定モード</b></label>
-          <p>－　hlsモードで保存をするための初期設定が必要です。</p>
-          <p>－　初期設定はONです。OFFにすると支援表示が消えダウンロードができるようになります。</p>
-          <p id="video_hlssave_now_setting">現在の設定：</p>
-          <p>
-            <select name="video_hlssave" id="video_hlssave" value="0">
-              <option value="0">ON</option>
-              <option value="1" selected>OFF</option>
-              <!--<option value="2" selected>OFF - 高速モード</option>-->
-            </select>
-          </p>
-        </div>
-        <div>
-          <label><b>デフォルト保存名</b></label>
-          <p>－　「名前を付けて保存」画面でデフォルトで命名されるファイル名を設定できます</p>
-          <p></p>
-          <p id="video_downloading_now_setting">現在の設定：</p>
-          <p><select name="video_downloading" id="video_downloading" value="0">
-              <option value="0" selected>[動画番号].mp4/aac</option>
-              <option value="1">[動画タイトル].mp4/aac</option>
-              <option value="2">[動画番号]_[動画タイトル].mp4/aac</option>
-              <option value="3">[動画タイトル]_[動画番号].mp4/aac</option>
-            </select></p>
-        </div>
-        <div>
-          <label><b>言語設定</b></label>
-          <p>－　表示言語を選択してください。</p>
-          <p>－　設定画面は日本語のみ対応しています。</p>
-          <p id="language_setting_now_setting">現在の設定：</p>
-          <p>
-            <select name="language_setting" id="language_setting">
-              <option value="ja" selected>日本語</option>
-              <option value="en">English(inaccurate)</option>
-            </select>
-          </p>
-        </div>
-        <div id="fork_container">
-          <label><b>保存形式の変更</b></label>
-          <p>ー　保存形式を選択してください。</p>
-          <p>ー　mp4とaacで変更できます。</p>
-          <p id="downFile_setting_now_setting">現在の設定：</p>
-          <p>
-            <select name="downFile_setting" id="downFile_setting">
-              <option value="mp4" selected>mp4（動画）</option>
-              <option value="aac">aac（音声）</option>
-            </select>
-          </p>
-        </div>
-        <br><br><br>
-        <details>
-          <summary>プロフェッショナル設定（ここの設定についてはサポートしません）</summary>
-          <div>
-            <label><b>URL判別パターン</b></label>
-            <p>－　特定のパターンでのみ反応するように変更できます。</p>
-            <p>－　Javascriptの正規表現で記載してください。</p>
-            <p id="video_pattern_now_setting">現在の設定：</p>
-            <p>https://www.nicovideo.jp/watch/<input type="text" name="video_pattern" id="video_pattern" value="sm[0-9]{1,}"></p>
           </div>
-
-
-          <div style="display: none;">
-            <label><b>自動保存設定</b></label>
-            <p>－　リンクの作成ができた時点で自動で保存処理が走るようになります。</p>
-            <p>－　鬱陶しい時はOFFにしましょう</p>
-            <p id="video_autosave_now_setting">現在の設定：</p>
-            <p>
-              <select name="video_autosave" id="video_autosave" value="0">
-                <option value="0" selected>OFF</option>
-                <option value="1">ON</option>
-              </select>
-            </p>
-          </div>
-          <br><br><br>
-
-          <div>
-            <label><b>デバッグモード</b></label>
-            <p>－　デバッグモードです。</p>
-            <p id="debug_now_setting">現在の設定：</p>
-            <p>
-              <select name="debug" id="debug" value="0">
-                <option value="0" selected>OFF</option>
-                <option value="1">ON</option>
-              </select>
-            </p>
-          </div>
-          <br><br><br>
-        </details>
-        <br><br><br>
-
-
-
+            <details class="advanced" id="advanced"><summary>プロフェッショナル設定（ここの設定についてはサポートしません）</summary><div class="advanced-content">
+              <p class="section-description">通常は変更する必要はありません。</p>
+              <p class="url-prefix">対象URL：https://www.nicovideo.jp/watch/</p>
+              <div class="field"><label for="video_pattern">URL判別パターン</label><input id="video_pattern" name="video_pattern" type="text" value="sm[0-9]{1,}" spellcheck="false" autocomplete="off" required aria-describedby="pattern-help"><p class="support" id="pattern-help">通常動画の動画番号に一致するJavaScriptの正規表現を指定します。</p></div>
+              <div class="row"><div><label class="row-label" for="debug">デバッグモード</label><p class="support" id="debug-help">詳しい動作ログをコンソールに表示します。</p></div><label class="switch"><input id="debug" name="debug" type="checkbox" role="switch" data-on="1" data-off="0" aria-describedby="debug-help"><span class="switch-track" aria-hidden="true"></span></label></div>
+              <input type="hidden" id="video_autosave" name="video_autosave" value="0">
+            </div></details>
+        </fieldset>
       </form>
-      <div style="text-align:center">
-        <p><button id="default_val">デフォルト設定</button>　<button id="save_button">保存</button></p>
-        <p id="saved"></p>
-      </div>
-    </div>
-
+      <footer class="footer"><div class="footer-links"><a href="https://github.com/masteralice3104/nico_downloader" target="_blank" rel="noopener noreferrer">リリースノート</a><a href="https://github.com/masteralice3104/nico_downloader/issues" target="_blank" rel="noopener noreferrer">不具合の報告</a></div><span id="version"></span></footer>
+    </main>
   </div>
-
-  <div style="text-align: center;">
-    <div>
-      <a href="https://github.com/masteralice3104/nico_downloader" style="color: #007bff; font-size: 18px;">nico
-        downloaderの現状、リリースノートなどはこちらから</a>
-    </div>
-    <div style="text-align: center;">
-      不具合・バグ報告・ソフトウェアについての要望などは<a href="https://github.com/masteralice3104/nico_downloader/issues" style="color: #007bff; font-size: 18px;">Github</a>から<br>
-      こちらにご報告いただけると迅速な対応が可能です。
-    </div>
-    <div style="text-align: center;">
-      <b>
-        <font size="4" color="#007bff">
-          <p id="version">vX.X.X.X</p>
-        </font>
-      </b>
-    </div>
-  </div>
+  <div class="action-bar"><div class="actions"><p id="saved" class="save-state" role="status" aria-live="polite">設定を読み込み中…</p><button type="button" class="action secondary" id="default_val" disabled>初期値に戻す</button><button type="submit" form="form" class="action primary" id="save_button" disabled>設定を保存</button></div></div>
+  <script src="options.js"></script><script src="options_menu.js"></script>
 </body>
-<script src="options.js"></script>
-<script src="options_menu.js"></script>
-
 </html>

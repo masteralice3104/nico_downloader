@@ -1,127 +1,169 @@
-//非保存フラグ
-let save_flag = true;
+// 設定画面専用。共有のoptions.jsや動画ページの処理には変更を加えない。
+const optionDefaults = {
+    video_downloading: "0",
+    video_pattern: "sm[0-9]{1,}",
+    video_autosave: "0",
+    video_hlssave: "0",
+    debug: "0",
+    language_setting: "ja",
+    downFile_setting: "mp4",
+};
+let savedOptions = null;
+let optionsBusy = true;
 
-//ロード時
-window.onload = function () {
-    newload();
-    Options_onload();
-    SoftVersionWrite();
-
-    //10ミリ秒ごとの処理を設定
-    const intervalId = setInterval(() => {
-        if (save_flag == true) {
-            Options_view_select("video_downloading");
-            Options_view_input("video_pattern");
-            Options_view_select("video_autosave");
-            Options_view_select("video_hlssave");
-            Options_view_select("debug");
-            Options_view_select("language_setting");
-            Options_view_select("downFile_setting");
-        }
-        save_flag = false;
-    }, 10);
+function ReadOptionControl(name) {
+    const control = document.getElementById(name);
+    return control.type === "checkbox" ? control.checked ? control.dataset.on : control.dataset.off : control.value;
 }
 
-function Options_view_select(name) {
-    let name_func = name;
-    
-    chrome.storage.local.get(name_func, function (result) {
-        // chrome.storage.local から name_func に対応する値を取得
-        const storedValue = result[name_func];
+function WriteOptionControl(name, value) {
+    const control = document.getElementById(name);
+    const normalized = String(value ?? optionDefaults[name]);
+    if (control.type === "checkbox") {
+        // 以前の高速モード値も、設定を開くだけでは通常モードへ変えない。
+        if (name === "video_hlssave") control.dataset.off = normalized === "2" ? "2" : "1";
+        control.checked = normalized === control.dataset.on;
+    }
+    else {
+        control.value = normalized;
+        if (control.tagName === "SELECT" && control.selectedIndex < 0) control.value = optionDefaults[name];
+    }
+}
 
-        // `optionValue` に取得した値かデフォルト値を設定
-        const optionValue = storedValue !== undefined ? storedValue : "0";
+function ReadOptionsForm() {
+    return Object.fromEntries(Object.keys(optionDefaults).map((name) => [name, ReadOptionControl(name)]));
+}
 
-        const selectElement = document.getElementById(name_func);
-        if (selectElement) {
-            // `optionValue`が存在するか確認して`value`を設定
-            selectElement.value = optionValue;
-            localStorage.setItem(name_func, optionValue);
+function OptionsAcknowledged() {
+    return document.getElementById("guide_acknowledged").checked;
+}
 
-            // 表示書き換え
-            const optionsArray = Array.from(selectElement.options); // optionsを配列として取得
-            const selectedOption = optionsArray.find(option => option.value === optionValue);
+function SetOptionsBusy(busy) {
+    optionsBusy = busy;
+    const locked = busy || !OptionsAcknowledged();
+    document.getElementById("guide_acknowledged").disabled = busy;
+    document.getElementById("settings_fields").disabled = locked;
+    document.getElementById("save_button").disabled = locked;
+    document.getElementById("default_val").disabled = locked;
+}
 
-            if (selectedOption) {
-                const nowtext = "現在の設定：" + selectedOption.innerText;
-                const rewrite = name_func + "_now_setting";
+function ShowOptionsStatus(message, error = false) {
+    const status = document.getElementById("saved");
+    status.textContent = message;
+    status.dataset.state = error ? "error" : "normal";
+}
 
-                const displayElement = document.getElementById(rewrite);
-                if (displayElement) {
-                    displayElement.innerText = nowtext;
-                } else {
-                    console.error(`Display element with id '${rewrite}' not found.`);
-                }
-            } else {
-                console.error(`Option with value '${optionValue}' not found in select element.`);
+function UpdateFilenamePreview() {
+    const patterns = ["sm12345678", "動画タイトル", "sm12345678_動画タイトル", "動画タイトル_sm12345678"];
+    const name = patterns[ReadOptionControl("video_downloading")] || patterns[0];
+    document.getElementById("filename_preview").textContent = name + "." + ReadOptionControl("downFile_setting");
+}
+
+function OptionsChanged() {
+    document.getElementById("video_pattern").setCustomValidity("");
+    UpdateFilenamePreview();
+    if (!optionsBusy && savedOptions) {
+        const dirty = JSON.stringify(ReadOptionsForm()) !== JSON.stringify(savedOptions);
+        ShowOptionsStatus(dirty ? "変更はまだ保存されていません。" : "保存済みの設定です。");
+    }
+}
+
+function Options_Save(event) {
+    event?.preventDefault();
+    if (optionsBusy || !savedOptions || !OptionsAcknowledged()) return;
+    const values = ReadOptionsForm();
+    const pattern = document.getElementById("video_pattern");
+    try {
+        if (!values.video_pattern.trim()) throw new Error("empty pattern");
+        new RegExp(values.video_pattern);
+    } catch (error) {
+        document.getElementById("advanced").open = true;
+        pattern.setCustomValidity("有効な正規表現を入力してください。");
+        pattern.reportValidity();
+        pattern.focus();
+        ShowOptionsStatus("URL判別パターンを確認してください。", true);
+        return;
+    }
+    SetOptionsBusy(true);
+    ShowOptionsStatus("保存中…");
+    const onError = (error) => {
+        SetOptionsBusy(false);
+        ShowOptionsStatus("保存できませんでした。もう一度お試しください。", true);
+        console.error("設定の保存に失敗しました:", error);
+    };
+    try {
+        chrome.storage.local.set({ ...values, newloading: "1" }, () => {
+            if (chrome.runtime.lastError) {
+                onError(chrome.runtime.lastError.message);
+                return;
             }
-        } else {
-            console.error(`Select element with id '${name_func}' not found.`);
-        }
-    });
-}
-
-function Options_view_input(name) {
-    name_func = name;
-    chrome.storage.local.get(name_func, function (value) {
-        //chrome.storage.localから読み出し
-        document.getElementById(name_func).value = setOption(name_func);
-        localStorage.setItem(name_func, setOption(name_func));
-
-        //表示書き換え
-        let nowtext = "現在の設定：" + setOption(name_func);
-        document.getElementById(name_func + "_now_setting").innerText = nowtext;
-    })
-}
-
-function Options_Save() {
-    //オプション設定保存時
-
-    //オプションの値を書き込み
-    Option_setWritingByID("video_downloading");
-    Option_setWritingByID("video_pattern");
-    Option_setWritingByID("debug");
-    Option_setWritingByID("video_autosave");
-    Option_setWritingByID("video_hlssave"); //
-    Option_setWritingByID("language_setting");
-    Option_setWritingByID("downFile_setting");
-
-
-    //保存日時
-    let now = new Date();
-    document.getElementById("saved").innerText = "保存日時：" + now.toLocaleString();
-
-    //非保存フラグ
-    save_flag = true;
-
-}
-
-function Option_setWritingByID(ID) {
-    Option_setWriting(ID, document.getElementById(ID).value);
+            // 動画ページで使うキーと値は従来のまま。ローカルの控えも同期する。
+            try {
+                for (const [name, value] of Object.entries({ ...values, newloading: "1" })) localStorage.setItem(name, value);
+            } catch (error) {
+                console.warn("設定のローカル控えを更新できませんでした:", error);
+            }
+            savedOptions = values;
+            SetOptionsBusy(false);
+            ShowOptionsStatus("設定を保存しました。");
+        });
+    } catch (error) {
+        onError(error);
+    }
 }
 
 function Default_click() {
-    //デフォルト設定を入力
-    document.getElementById("form").value = document.getElementById("form").reset();
+    if (optionsBusy || !OptionsAcknowledged()) return;
+    for (const [name, value] of Object.entries(optionDefaults)) WriteOptionControl(name, value);
+    OptionsChanged();
+    ShowOptionsStatus("初期値に戻しました。反映するには保存してください。");
 }
 
-function SoftVersion() {
-    let manifest = chrome.runtime.getManifest();
-    return manifest['version'];
+function UpdateOptionsNavigation() {
+    const hash = location.hash || "#help";
+    for (const link of document.querySelectorAll(".navigation a")) {
+        if (link.getAttribute("href") === hash) link.setAttribute("aria-current", "location");
+        else link.removeAttribute("aria-current");
+    }
 }
 
-function SoftVersionWrite() {
-    let ver = SoftVersion();
-    document.getElementById("version").innerText = `バージョン：` + ver;
+function InitializeOptions() {
+    const acknowledgement = document.getElementById("guide_acknowledged");
+    acknowledgement.checked = false;
+    acknowledgement.addEventListener("change", () => {
+        SetOptionsBusy(optionsBusy);
+        if (!optionsBusy) {
+            if (OptionsAcknowledged()) OptionsChanged();
+            else ShowOptionsStatus("先に上の使い方を確認してください。");
+        }
+    });
+    if (location.hash && location.hash !== "#help") location.hash = "#help";
+    document.getElementById("form").addEventListener("submit", Options_Save);
+    document.getElementById("form").addEventListener("input", OptionsChanged);
+    document.getElementById("form").addEventListener("change", OptionsChanged);
+    document.getElementById("default_val").addEventListener("click", Default_click);
+    window.addEventListener("hashchange", UpdateOptionsNavigation);
+    UpdateOptionsNavigation();
+    document.getElementById("version").textContent = "バージョン " + chrome.runtime.getManifest().version;
+    const onError = (error) => {
+        ShowOptionsStatus("設定を読み込めませんでした。画面を再読み込みしてください。", true);
+        console.error("設定の読み込みに失敗しました:", error);
+    };
+    try {
+        chrome.storage.local.get(optionDefaults, (values) => {
+            if (chrome.runtime.lastError) {
+                onError(chrome.runtime.lastError.message);
+                return;
+            }
+            for (const name of Object.keys(optionDefaults)) WriteOptionControl(name, values[name]);
+            savedOptions = ReadOptionsForm();
+            UpdateFilenamePreview();
+            SetOptionsBusy(false);
+            ShowOptionsStatus("先に上の使い方を確認してください。");
+        });
+    } catch (error) {
+        onError(error);
+    }
 }
 
-function SystemMessageOpenButton() {
-    document.getElementById('system_message_open').style = 'display: block';
-}
-
-//システムメッセージを開きダウンロードする方法
-document.getElementById("system_message_open_button").onclick = SystemMessageOpenButton;
-
-//保存ボタンクリック時
-document.getElementById("save_button").onclick = Options_Save;
-document.getElementById("default_val").onclick = Default_click;
+document.addEventListener("DOMContentLoaded", InitializeOptions, { once: true });
