@@ -335,6 +335,7 @@ class DomandPlaylistCapture {
         this.closed = false;
         this.candidate = null;
         this.requested = null;
+        this.logged = new Set();
         try {
             const navigation = performance.getEntriesByType("navigation")[0];
             // 拡張の起動前にSPA遷移済みなら、古いページのバッファーを採用しない。
@@ -343,9 +344,11 @@ class DomandPlaylistCapture {
             if (typeof PerformanceObserver === "function") {
                 this.observer = new PerformanceObserver((list) => this.accept(list.getEntries()));
                 this.observer.observe({ type: "resource", buffered: true });
+            } else {
+                this.report("監視開始", "PerformanceObserverが利用できません。既存の記録とシステムメッセージを使います。");
             }
         } catch (error) {
-            console.debug("リソースURL監視を開始できませんでした。従来の取得方法を使います。", error);
+            this.report("監視開始", "リソースURL監視を開始できませんでした。", error);
         }
         window.addEventListener("popstate", () => this.syncRoute());
         window.addEventListener("hashchange", () => this.syncRoute());
@@ -362,9 +365,16 @@ class DomandPlaylistCapture {
             try {
                 this.observer?.observe({ type: "resource", buffered: false });
             } catch (error) {
-                console.debug("リソースURL監視の再開に失敗しました。", error);
+                this.report("監視再開", "リソースURL監視を再開できませんでした。", error);
             }
         });
+    }
+
+    report(stage, reason, details = "") {
+        const key = `${stage}:${reason}`;
+        if (this.logged.has(key)) return;
+        this.logged.add(key);
+        console.log(`[nico downloader] m3u8取得 [${stage}] ${reason}`, details);
     }
 
     now() {
@@ -395,6 +405,7 @@ class DomandPlaylistCapture {
         this.since = this.now();
         this.generation++;
         this.seen.clear();
+        this.logged.clear();
         this.queue = [];
         this.candidate = null;
         this.requested = null;
@@ -414,6 +425,7 @@ class DomandPlaylistCapture {
                 entry.startTime < this.since || !this.matches(entry.name) || this.seen.has(entry.name)) continue;
             if (this.seen.size >= 64) this.seen.delete(this.seen.values().next().value);
             this.seen.add(entry.name); // 確認用fetch自身の記録による再取得を防ぐ。
+            this.report("URL検出", "対象URLを検出しました。", entry.name);
             this.queue.push({ url: entry.name, startTime: entry.startTime, route, generation: this.generation });
             if (this.queue.length > 8) this.queue.shift();
         }
@@ -434,26 +446,38 @@ class DomandPlaylistCapture {
     async verify(entry) {
         const controller = new AbortController();
         this.controllers.add(controller);
-        const timer = setTimeout(() => controller.abort(), 5000);
+        let timedOut = false;
+        let stage = "URL取得";
+        const timer = setTimeout(() => { timedOut = true; controller.abort(); }, 5000);
+        const reject = (reason, details = entry.url) => this.report(stage, reason, details);
         try {
             const response = await fetch(entry.url, { credentials: "include", signal: controller.signal });
-            if (!response.ok || (response.url && !this.matches(response.url))) return;
+            if (!response.ok) return reject(`HTTPエラー: ${response.status}`, entry.url);
+            if (response.url && !this.matches(response.url)) return reject("転送先が対象URLの範囲外です。", response.url);
+            stage = "本文読込";
             const size = Number(response.headers?.get("content-length"));
-            if (size > 512 * 1024) return;
+            if (size > 512 * 1024) return reject("本文サイズが上限512 KiBを超えています。");
             const text = await response.text();
-            if (text.length > 512 * 1024) return;
+            if (text.length > 512 * 1024) return reject("本文の長さが上限524288文字を超えています。");
+            stage = "親プレイリスト判定";
             const audio = text.split(/\r?\n/).some((line) => line.startsWith("#EXT-X-MEDIA:") &&
                 /(?:^|,)TYPE=AUDIO(?:,|$)/.test(line.slice(13)) && /(?:^|,)URI="[^"]+"/.test(line.slice(13)));
-            if (!/^\uFEFF?#EXTM3U\r?\n/.test(text) || !/^#EXT-X-STREAM-INF:/m.test(text) ||
-                /^#EXTINF:/m.test(text) || !audio) return;
-            if (this.closed || this.syncRoute() !== entry.route || this.generation !== entry.generation) return;
+            if (!/^\uFEFF?#EXTM3U\r?\n/.test(text)) return reject("HLSのヘッダーがありません。");
+            if (/^#EXTINF:/m.test(text)) return reject("子プレイリストのため親URLとして採用しません。");
+            if (!/^#EXT-X-STREAM-INF:/m.test(text)) return reject("映像ストリーム情報がありません。");
+            if (!audio) return reject("音声ストリームのURIがありません。");
+            if (this.closed || this.syncRoute() !== entry.route || this.generation !== entry.generation) {
+                return reject("ページ遷移または終了により取得結果を破棄しました。");
+            }
             if (!this.candidate || entry.startTime >= this.candidate.startTime) {
                 this.candidate = { ...entry, checkedAt: this.now() };
                 console.log("[nico downloader] 親m3u8取得成功:", entry.url);
                 window.dispatchEvent(new Event("nico-downloader-playlist-ready"));
             }
         } catch (error) {
-            // URLを確認できなければ候補にせず、従来のシステムメッセージ経路を使う。
+            if (timedOut) reject("5秒以内に完了せずタイムアウトしました。");
+            else if (controller.signal.aborted) reject("ページ遷移または終了により中断しました。");
+            else reject("通信または応答の読み取りに失敗しました。", { url: entry.url, error });
         } finally {
             clearTimeout(timer);
             this.controllers.delete(controller);
@@ -469,7 +493,15 @@ class DomandPlaylistCapture {
 
     claim(event) {
         const candidate = this.available();
-        if (!candidate) return; // 既存のonclickをそのまま実行し、システムメッセージを開く。
+        if (!candidate) {
+            const reason = this.candidate ? "取得済みURLの有効期間（60秒）を過ぎています。" :
+                this.active || this.queue.length ? "検出したURLを確認中です。" :
+                this.seen.size ? "検出したURLから利用できる親m3u8を確認できませんでした。上の取得・判定ログを確認してください。" :
+                "対象URLがリソース記録に見つかりません。";
+            this.report("保存ボタン押下", reason);
+            this.report("従来経路", "システムメッセージからのURL取得に切り替えます。");
+            return; // 既存のonclickをそのまま実行し、システムメッセージを開く。
+        }
         event.preventDefault();
         event.stopImmediatePropagation();
         this.requested = candidate; // 保存ボタンを押すまでダウンロード開始条件にしない。

@@ -678,10 +678,20 @@ class NicoDownloaderClass {
 
         //URLが取得できなかったらfalseを返す
         if (tempURL == null) return false;
-        if (tempURL == '') return false;
+        if (tempURL == '') {
+            if (typeof domandPlaylistCapture !== "undefined") {
+                const reason = document.getElementsByClassName(VideoData.SystemMessageContainer).length ?
+                    "初期化完了メッセージ内にURLが見つかりません。" : "システムメッセージ欄がまだ表示されていません。";
+                domandPlaylistCapture.report("システムメッセージ", reason);
+            }
+            return false;
+        }
         const masterURL = tempURL;
         if (masterURL == null) return false;
 
+        if (typeof domandPlaylistCapture !== "undefined") {
+            domandPlaylistCapture.report("システムメッセージ", "親m3u8のURLを取得しました。", masterURL);
+        }
         return masterURL;
     }
 
