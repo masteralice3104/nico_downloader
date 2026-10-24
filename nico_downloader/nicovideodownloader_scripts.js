@@ -43,6 +43,10 @@ async function VideoDown() {
     );
     Nicovideo.video_name = video_name;
 
+    // 情報取得中にページが切り替わった場合、古い動画のボタンを描画しない。
+    if (!Nicovideo.CheckNicovideoWatchURL() ||
+        Nicovideo.VideoSmGet(NicoDownloader.MatchingSMIDArray) !== Nicovideo.video_sm) return false;
+
     // すでに作ったリンクがあるかどうか判別し、あれば削除
     NicoDownloader.VideoTitleElementCheck(Nicovideo.video_sm);
 
@@ -67,7 +71,10 @@ async function VideoDown() {
 
         new Promise((resolve, reject) => {
             //ボタンをとりあえず作成
-            NicoDownloader.ButtonFirstMake();
+            if (!NicoDownloader.ButtonFirstMake(Nicovideo.video_sm)) {
+                reject("保存ボタンの表示先は読み込み待ちです");
+                return;
+            }
 
             NicoDownloader.ButtonTextWrite("処理開始"); //ボタンの文字を変更
 
@@ -195,4 +202,119 @@ async function MovieDownload_domand(Nicovideo, NicoDownloader) {
 
     NicoDownloader.ButtonTextWrite("処理中"); //ボタンの文字を変更
     DownEncoder(NicoDownloader, m3u8s, Nicovideo);
+}
+
+
+let initialButtonObserverStarted = false;
+
+// 初期ボタンだけを描画する。動画取得・変換・保存は既存の定期処理が担当する。
+function StartInitialButtonObserver() {
+    if (initialButtonObserverStarted) return;
+    if (!document.documentElement) {
+        document.addEventListener("DOMContentLoaded", StartInitialButtonObserver, { once: true });
+        return;
+    }
+    initialButtonObserverStarted = true;
+    let settings;
+    let frame = null;
+    let observing = true;
+
+    const refresh = () => {
+        const routeId = location.href.match(/^https:\/\/www\.nicovideo\.jp\/watch\/([^/?#]+)/)?.[1];
+        if (!routeId) return;
+        const videoId = settings ? location.href.match(settings.video_pattern)?.[0] : routeId;
+        if (!videoId || NicovideoDownloader__NowDownloading ||
+            NicovideoDownloader__LoadedVideoSMID === videoId) return;
+        const parent = document.getElementsByClassName(VideoData.Video_title_Element)[0];
+        if (!parent) return;
+        let wrapper = document.getElementById(VideoData.Video_DLlink.p);
+        if (wrapper && (!parent.contains(wrapper) || wrapper.dataset.ndlVideoId !== videoId)) {
+            wrapper.remove();
+            wrapper = null;
+        }
+        if (!settings) {
+            if (wrapper) return;
+            // 設定取得前はコンストラクターによる設定参照も避け、表示だけ準備する。
+            const preview = Object.create(NicoDownloaderClass.prototype);
+            if (!preview.ButtonFirstMake(videoId)) return;
+            wrapper = document.getElementById(VideoData.Video_DLlink.p);
+            preview.ButtonInnerHTMLWrite(VideoData.DLButton.a + VideoData.DLButton.b +
+                "読込中…" + VideoData.DLButton.c);
+            const button = document.getElementById(VideoData.Video_DLlink.a).querySelector("button");
+            if (button) button.disabled = true;
+            wrapper.dataset.ndlInitialPending = "settings";
+            return;
+        }
+        // 通常処理が描画したタイトル・進捗・完了表示には触れない。
+        if (wrapper && !["1", "settings"].includes(wrapper.dataset.ndlInitialPending)) return;
+        if (wrapper?.dataset.ndlInitialPending === "1" && settings.video_hlssave !== "0" &&
+            !document.querySelector(VideoData.PlayerSettingQuery)) return;
+        const downloader = new NicoDownloaderClass();
+        downloader.Savemode = settings.video_hlssave;
+        downloader.LangSetting = settings.language_setting;
+        if (!wrapper) {
+            if (!downloader.ButtonFirstMake(videoId)) return;
+            wrapper = document.getElementById(VideoData.Video_DLlink.p);
+        }
+        // タイトル取得前も保存形式を反映し、通常処理の表示名はそのまま引き継ぐ。
+        const initialName = `${videoId}.${settings.downFile_setting}`;
+        downloader.SaveButtonMake(wrapper.dataset.ndlInitialName || initialName);
+    };
+    const schedule = () => {
+        if (!observing || frame !== null) return;
+        frame = requestAnimationFrame(() => {
+            frame = null;
+            refresh();
+        });
+    };
+    const observer = new MutationObserver((records) => {
+        if (records.every((record) => {
+            const element = record.target.nodeType === 1 ? record.target : record.target.parentElement;
+            return element?.closest?.("#" + VideoData.Video_DLlink.p);
+        })) return;
+        schedule();
+    });
+    const observe = () => observer.observe(document.documentElement, {
+        childList: true, subtree: true, characterData: true,
+        attributes: true, attributeFilter: ["class", "aria-label"],
+    });
+    observe();
+    schedule();
+    window.addEventListener("popstate", schedule);
+    window.addEventListener("hashchange", schedule);
+    window.addEventListener("pagehide", () => {
+        observing = false;
+        observer.disconnect();
+        if (frame !== null) cancelAnimationFrame(frame);
+        frame = null;
+    });
+    window.addEventListener("pageshow", () => {
+        observing = true;
+        observe();
+        schedule();
+    });
+    chrome.storage.local.get({
+        video_pattern: "sm[0-9]+", video_hlssave: "0", language_setting: "ja",
+        downFile_setting: "mp4",
+    }, (value) => {
+        if (chrome.runtime.lastError) {
+            console.warn("初期ボタンの設定取得に失敗しました:", chrome.runtime.lastError.message);
+            return;
+        }
+        const pattern = !value.video_pattern || value.video_pattern === "0"
+            ? "sm[0-9]+" : String(value.video_pattern);
+        try {
+            new RegExp(pattern);
+        } catch (error) {
+            console.warn("初期ボタンの動画IDパターンが不正です:", error);
+            return;
+        }
+        settings = {
+            video_pattern: pattern,
+            video_hlssave: String(value.video_hlssave ?? "0"),
+            language_setting: value.language_setting === "en" ? "en" : "ja",
+            downFile_setting: String(value.downFile_setting || "mp4"),
+        };
+        schedule();
+    });
 }

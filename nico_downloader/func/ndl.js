@@ -240,7 +240,8 @@ class NicoDownloaderClass {
             DebugPrint("video_sm : " + video_sm)
             //this.LoadedVideoSMIDが現在のものと同じじゃないならすでに読み込んだ形跡があるので一回消す
             this.LoadedVideoSMID = "-1";// リセット
-            document.getElementById(VideoData.Video_DLlink.p).remove();//消す
+            const wrapper = document.getElementById(VideoData.Video_DLlink.p);
+            if (wrapper && wrapper.dataset.ndlVideoId !== video_sm) wrapper.remove();
         }
         return;
     }
@@ -344,21 +345,27 @@ class NicoDownloaderClass {
      * false:失敗
     */
     ////////////////////////////////////////////////////////////////////////
-    ButtonFirstMake() {
-
-        let p_link = document.createElement("p");
-        p_link.id = VideoData.Video_DLlink.p;
-        p_link.className = VideoData.Video_DLlink.div_class;
-        let a_link = document.createElement("a");
-        a_link.innerText = "処理中";
-        a_link.id = VideoData.Video_DLlink.a;
-
-        //すでにあるなら追加しない
-        if (!document.getElementById(p_link.id)) {
-            document.getElementsByClassName(VideoData.Video_title_Element)[0].appendChild(p_link);
-            document.getElementsByClassName(VideoData.Video_title_Element)[0].querySelector("p").appendChild(a_link);
+    ButtonFirstMake(video_sm) {
+        const parent = document.getElementsByClassName(VideoData.Video_title_Element)[0];
+        if (!parent) return false;
+        let wrapper = document.getElementById(VideoData.Video_DLlink.p);
+        if (wrapper && !parent.contains(wrapper)) {
+            wrapper.remove();
+            wrapper = null;
         }
-
+        if (!wrapper) {
+            wrapper = document.createElement("p");
+            wrapper.id = VideoData.Video_DLlink.p;
+            wrapper.className = VideoData.Video_DLlink.div_class;
+            parent.appendChild(wrapper);
+        }
+        if (video_sm) wrapper.dataset.ndlVideoId = video_sm;
+        if (!document.getElementById(VideoData.Video_DLlink.a)) {
+            const content = document.createElement("a");
+            content.id = VideoData.Video_DLlink.a;
+            content.innerText = "処理中";
+            wrapper.appendChild(content);
+        }
         return true;
     }
 
@@ -536,6 +543,14 @@ class NicoDownloaderClass {
     SaveButtonMake(video_name) {
         const innerHTML = this.SaveButtonInnerHTMLMake(video_name);
         this.ButtonInnerHTMLWrite(innerHTML);
+        const wrapper = document.getElementById(VideoData.Video_DLlink.p);
+        const ready = this.Savemode == "0" || !!document.querySelector(VideoData.PlayerSettingQuery);
+        const button = document.getElementById(VideoData.Video_DLlink.a).querySelector("button");
+        if (button) button.disabled = !ready;
+        if (wrapper) {
+            wrapper.dataset.ndlInitialPending = ready ? "0" : "1";
+            wrapper.dataset.ndlInitialName = video_name;
+        }
         return;
     }
 
@@ -1006,3 +1021,5 @@ class NicovideoM3u8 {
         return ret;
     }
 }
+// manifestで最後に読み込まれるため、必要なクラスがそろった後に監視を開始する。
+if (typeof StartInitialButtonObserver === "function") StartInitialButtonObserver();
