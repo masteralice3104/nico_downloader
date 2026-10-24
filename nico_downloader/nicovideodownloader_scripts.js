@@ -37,13 +37,16 @@ async function VideoDown() {
     }
 
     // デフォルト動画ファイル名の定義
-    const downFile_setting = await downFile_get();
+    const filenameSettings = await filenameSettingsGet();
+    const downFile_setting = filenameSettings.downFile_setting;
     DebugPrint("downFile_setting:" + downFile_setting); // 取得した値を表示
 
     const video_name = NicoDownloader.VideoDownloadNameMake(
         Nicovideo.video_sm,
         Nicovideo.video_title,
-        downFile_setting
+        downFile_setting,
+        filenameSettings,
+        Nicovideo.video_owner
     );
     Nicovideo.video_name = video_name;
 
@@ -56,14 +59,17 @@ async function VideoDown() {
 
     DebugPrint("video_name:" + Nicovideo.video_name);
 
-    // 非同期でdownFile_settingを取得する関数
-    function downFile_get() {
+    // 保存形式と通常動画専用の保存名設定をまとめて取得する。
+    function filenameSettingsGet() {
         return new Promise((resolve, reject) => {
-            chrome.storage.local.get("downFile_setting", function (value) {
+            chrome.storage.local.get({
+                downFile_setting: "mp4", video_filename_mode: "default",
+                video_filename_part_1: "uploader", video_filename_part_2: "title", video_filename_part_3: "id",
+            }, function (value) {
                 if (chrome.runtime.lastError) {
                     reject(chrome.runtime.lastError);
                 } else {
-                    resolve(value.downFile_setting);
+                    resolve(value);
                 }
             });
         });

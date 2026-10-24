@@ -212,10 +212,20 @@ class NicoDownloaderClass {
      * @param {String} video_smID SMID
      * @param {String} video_title タイトル
      * @param {String} video_type 拡張子 (デフォルト: mp4)
+     * @param {Object|null} filenameSettings 通常動画専用の保存名設定
+     * @param {String} video_owner 投稿者名
      * @returns {String} 動画のダウンロード名(例：smID_title.mp4)
      */
     ////////////////////////////////////////////////////////////////////////
-    VideoDownloadNameMake(video_smID, video_title, video_type = "mp4") {
+    VideoDownloadNameMake(video_smID, video_title, video_type = "mp4", filenameSettings = null, video_owner = "") {
+        // 通常動画の追加設定。ショートは従来の基本設定を必ず使う。
+        if (!/^ss[0-9]+$/.test(video_smID) && filenameSettings) {
+            const mode = filenameSettings.video_filename_mode;
+            if (mode === "custom" || mode === "uploader_title_id") {
+                const parts = mode === "custom" ? [1, 2, 3].map((i) => filenameSettings["video_filename_part_" + i]) : ["uploader", "title", "id"];
+                return BuildVideoFilename(parts, { id: video_smID, title: video_title, uploader: video_owner }, video_type);
+            }
+        }
         let ret = this.VideoDownloadNameArray;
         ret = ret.replace("${NicoDownloaderClasssmID}", video_smID);
         ret = ret.replace("${NicoDownloaderClasstitle}", video_title);

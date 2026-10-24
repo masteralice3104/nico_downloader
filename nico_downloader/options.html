@@ -21,6 +21,8 @@
     @media(prefers-color-scheme:dark){.help{background:#381813;color:#ffdad4;border-color:#ffb4ab}.guide-required,.help li:before{background:#ffb4ab;color:#601410}.guide-confirm{border-color:#ffb4ab}}
     @media(max-width:480px){.help{padding:20px 16px}.help h2{font-size:22px}.help li{padding-left:40px}.guide-confirm{padding:14px 12px}}
     .advanced{margin-top:12px;padding:0;border:0;background:transparent}.advanced summary{padding:8px 0;font-size:12px;font-weight:400;color:var(--muted)}.advanced summary:hover{color:var(--text)}.advanced-content{padding:20px 0 8px}.advanced .field label{background:var(--surface)}
+    .filename-parts{grid-template-columns:repeat(3,minmax(0,1fr))}.shorts-preview-label{margin-top:12px}#shorts_filename_preview{font-family:ui-monospace,Consolas,monospace;font-size:14px;overflow-wrap:anywhere}#filename_custom_fields[hidden]{display:none}
+    @media(max-width:480px){.filename-parts{grid-template-columns:1fr}}
   </style>
 </head>
 <body>
@@ -52,9 +54,12 @@
               <h2 id="download-heading">保存</h2><p class="section-description">動画・ショートの保存方法を設定します。</p>
               <div class="fields">
                 <div class="field"><label for="downFile_setting">保存形式</label><select name="downFile_setting" id="downFile_setting"><option value="mp4" selected>MP4（動画）</option><option value="aac">AAC（音声のみ）</option></select></div>
-                <div class="field"><label for="video_downloading">ファイル名</label><select name="video_downloading" id="video_downloading"><option value="0" selected>動画番号</option><option value="1">動画タイトル</option><option value="2">動画番号_動画タイトル</option><option value="3">動画タイトル_動画番号</option></select></div>
+                <div class="field"><label for="video_downloading">基本のファイル名</label><select name="video_downloading" id="video_downloading"><option value="0" selected>動画番号</option><option value="1">動画タイトル</option><option value="2">動画番号_動画タイトル</option><option value="3">動画タイトル_動画番号</option></select></div>
               </div>
-              <div class="preview"><span class="preview-label">ファイル名のプレビュー</span><output id="filename_preview" for="video_downloading downFile_setting">sm12345678.mp4</output></div>
+              <p class="support">ショートは常に「基本のファイル名」で保存します。</p>
+              <div class="field spacer"><label for="video_filename_mode">通常動画のファイル名</label><select id="video_filename_mode" name="video_filename_mode" aria-describedby="filename-mode-help"><option value="default" selected>基本設定を使う</option><option value="custom">カスタム</option></select><p class="support" id="filename-mode-help">この設定は通常動画だけに反映されます。</p></div>
+              <div id="filename_custom_fields" class="spacer" hidden><div class="fields filename-parts"><div class="field"><label for="video_filename_part_1">1番目</label><select id="video_filename_part_1" name="video_filename_part_1"><option value="uploader" selected>投稿者名</option><option value="title">動画タイトル</option><option value="id">動画番号</option><option value="none">なし</option></select></div><div class="field"><label for="video_filename_part_2">2番目</label><select id="video_filename_part_2" name="video_filename_part_2"><option value="uploader">投稿者名</option><option value="title" selected>動画タイトル</option><option value="id">動画番号</option><option value="none">なし</option></select></div><div class="field"><label for="video_filename_part_3">3番目</label><select id="video_filename_part_3" name="video_filename_part_3"><option value="uploader">投稿者名</option><option value="title">動画タイトル</option><option value="id" selected>動画番号</option><option value="none">なし</option></select></div></div><p class="support">選んだ順に「_」でつなぎます。「なし」や取得できない項目は省略し、すべて空の場合は動画番号を使います。</p></div>
+              <div class="preview"><span class="preview-label">通常動画のプレビュー</span><output id="filename_preview" for="video_downloading downFile_setting video_filename_mode video_filename_part_1 video_filename_part_2 video_filename_part_3">sm12345678.mp4</output><span class="preview-label shorts-preview-label">ショートのプレビュー</span><output id="shorts_filename_preview" for="video_downloading downFile_setting">ss12345678.mp4</output></div>
               <div class="row spacer"><div><label class="row-label" for="video_hlssave">初期設定モード</label><p class="support" id="setup-help">オンの間は案内を表示します。ダウンロードするときはオフにしてください。</p></div><label class="switch"><input id="video_hlssave" name="video_hlssave" type="checkbox" role="switch" data-on="0" data-off="1" checked aria-describedby="setup-help"><span class="switch-track" aria-hidden="true"></span></label></div>
             </section>
             <section class="section" id="display" aria-labelledby="display-heading">

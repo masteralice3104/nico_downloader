@@ -77,6 +77,10 @@ function newload() {
 function defalt_dataWrite() {
     Option_setWriting("newloading", "1");
     Option_setWriting("video_downloading", "0");
+    Option_setWriting("video_filename_mode", "default");
+    Option_setWriting("video_filename_part_1", "uploader");
+    Option_setWriting("video_filename_part_2", "title");
+    Option_setWriting("video_filename_part_3", "id");
     Option_setWriting("video_pattern", "sm[0-9]{1,}");
     Option_setWriting("shorts_video_pattern", "ss[0-9]{1,}");
     Option_setWriting("video_autosave", "0");
@@ -93,6 +97,10 @@ function Options_onload() {
     //オプションの値を読み込み
     try {
         LoadOption("video_downloading");
+        LoadOption("video_filename_mode");
+        LoadOption("video_filename_part_1");
+        LoadOption("video_filename_part_2");
+        LoadOption("video_filename_part_3");
         LoadOption("video_pattern");
         LoadOption("shorts_video_pattern");
         LoadOption("video_autosave");
@@ -130,4 +138,14 @@ function DebugPrint(text) {
         }
         
     }
+}
+
+// 通常動画のカスタム保存名と設定画面のプレビューで共用する。
+function BuildVideoFilename(parts, video, extension) {
+    const clean = (value) => String(value ?? "").replace(/[<>:"/\\|?*\u0000-\u001f]/g, "_").trim().replace(/[. ]+$/, "");
+    const values = { id: video.id, title: video.title, uploader: video.uploader };
+    const name = parts.map((part) => Object.prototype.hasOwnProperty.call(values, part) ? clean(values[part]) : "")
+        .filter(Boolean).join("_") || clean(video.id);
+    const safeName = /^(?:con|prn|aux|nul|com[1-9]|lpt[1-9])(?:\.|$)/i.test(name) ? "_" + name : name;
+    return safeName + "." + extension;
 }

@@ -1,6 +1,10 @@
-// 設定画面専用。共有のoptions.jsや動画ページの処理には変更を加えない。
+// 設定画面専用。保存キーと保存名の生成処理は動画ページと共通。
 const optionDefaults = {
     video_downloading: "0",
+    video_filename_mode: "default",
+    video_filename_part_1: "uploader",
+    video_filename_part_2: "title",
+    video_filename_part_3: "id",
     video_pattern: "sm[0-9]{1,}",
     shorts_video_pattern: "ss[0-9]{1,}",
     video_autosave: "0",
@@ -56,8 +60,15 @@ function ShowOptionsStatus(message, error = false) {
 
 function UpdateFilenamePreview() {
     const patterns = ["sm12345678", "動画タイトル", "sm12345678_動画タイトル", "動画タイトル_sm12345678"];
-    const name = patterns[ReadOptionControl("video_downloading")] || patterns[0];
-    document.getElementById("filename_preview").textContent = name + "." + ReadOptionControl("downFile_setting");
+    const basicName = patterns[ReadOptionControl("video_downloading")] || patterns[0];
+    const extension = ReadOptionControl("downFile_setting");
+    const mode = ReadOptionControl("video_filename_mode");
+    document.getElementById("filename_custom_fields").hidden = mode !== "custom";
+    const parts = mode === "custom" ? [1, 2, 3].map((i) => ReadOptionControl("video_filename_part_" + i)) : ["uploader", "title", "id"];
+    const name = mode === "default" ? basicName + "." + extension :
+        BuildVideoFilename(parts, { id: "sm12345678", title: "動画タイトル", uploader: "投稿者名" }, extension);
+    document.getElementById("filename_preview").textContent = name;
+    document.getElementById("shorts_filename_preview").textContent = basicName.replace("sm12345678", "ss12345678") + "." + extension;
 }
 
 function OptionsChanged() {
