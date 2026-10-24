@@ -7,8 +7,9 @@ let last_save_sm = "";
 const parseArgs = (Core, args) => {
   const argsPtr = Core._malloc(args.length * Uint32Array.BYTES_PER_ELEMENT);
   args.forEach((s, idx) => {
-    const buf = Core._malloc(s.length + 1);
-    Core.writeAsciiToMemory(s, buf);
+    const size = Core.lengthBytesUTF8(s) + 1;
+    const buf = Core._malloc(size);
+    Core.stringToUTF8(s, buf, size);
     Core.setValue(argsPtr + Uint32Array.BYTES_PER_ELEMENT * idx, buf, "i32");
   });
   return [args.length, argsPtr];
@@ -16,7 +17,7 @@ const parseArgs = (Core, args) => {
 
 // ffmpegの実行
 const ffmpeg = (Core, args) => {
-  Core.ccall(
+  return Core.ccall(
     "main",
     "number",
     ["number", "number"],
@@ -24,135 +25,60 @@ const ffmpeg = (Core, args) => {
   ); //https://github.com/naari3/nico-downloader-ffmpeg/blob/main/src/background.ts
 };
 
-////////////////////////////////////////////////////////////////
 /**
- * m3u8を変換する
- * @param {Core} Core
- * @param {String} m3u8name
- * @param {NicoDownloaderClass} NicoDownloader
- * @param {NicovideoClass} Nicovideo
- * @param {String} mode
+ * 変換引数を組み立てる。実行とログ表示で同じ配列を使う。
+ * 日本語のUTF-8化はparseArgsで行う。
  */
-////////////////////////////////////////////////////////////////
-const runFFmpeg_m3u8 = async (
-  Core,
-  m3u8name,
-  NicoDownloader,
-  Nicovideo,
-  mode = "mp4"//デフォルトはmp4
-) => {
-  let resolve = null;
+const makeFFmpegArgs = (m3u8name, Nicovideo, mode, outputFileName) => {
+  const metadata = [
+    ["title", Nicovideo.video_title ?? ""],
+    ["show", Nicovideo.video_title ?? ""],
+    ["creation_time", Nicovideo.video_registeredAt ?? ""],
+    ["date", Nicovideo.video_registeredAt ?? ""],
+    ["artist", Nicovideo.video_owner ?? ""],
+    ["description", Nicovideo.video_description ?? ""],
+    ["comment", Nicovideo.video_description ?? ""],
+    ["keywords", (Nicovideo.video_tags ?? []).join(", ")],
+    ["genre", Nicovideo.video_genre ?? ""],
+    ["publisher", "nicovideo.jp"],
+    ["episode_id", Nicovideo.video_sm],
+    ["album", Nicovideo.video_series ?? ""],
+    ["album_artist", Nicovideo.video_owner ?? ""],
+  ];
+  return [
+    "-allowed_extensions", "ALL", "-i", m3u8name,
+    ...metadata.flatMap(([key, value]) => ["-metadata", `${key}=${value}`]),
+    ...(mode === "aac" ? ["-vn", "-c:a", "copy"] : ["-c", "copy"]),
+    outputFileName,
+  ];
+};
 
-  //終了を待つためのPromise
-  const waitEnd = new Promise((r) => {
-    resolve = r;
-  });
+/**
+ * 変換を実行する。保存は5.0.0.22のFFMPEG_ENDコールバックが担当する。
+ * @returns {Promise<void>}
+ */
+const runFFmpeg_m3u8 = async (Core, m3u8name, NicoDownloader, Nicovideo, mode = "mp4") => {
+  NicoDownloader.SetVideFormatByExtension(mode);
+  NicoDownloader.FSOutputFileNameSet(Nicovideo);
+  const outputFileName = NicoDownloader.FSOutputFileNameGet();
+  const args = makeFFmpegArgs(m3u8name, Nicovideo, mode, outputFileName);
 
-  //終了時にresolve
+  console.log("=== FFmpeg変換開始 ===");
+  console.log(`入力ファイル: ${m3u8name}`);
+  console.log(`出力ファイル: ${outputFileName}`);
+  console.log(`変換モード: ${mode}`);
+  console.log(`FFmpegコマンド: ffmpeg ${args.join(" ")}`);
+
+  let status;
   try {
-    //日本語が入っているとタグが変になるのでエンコード
-    //unescapeは非推奨だが見なかったことにする
-    const title_str = unescape(encodeURIComponent(Nicovideo.video_title));
-    const timestamp_str = unescape(
-      encodeURIComponent(Nicovideo.video_registeredAt)
-    );
-    const username_str = unescape(encodeURIComponent(Nicovideo.video_owner));
-    const description_str = unescape(
-      encodeURIComponent(Nicovideo.video_description)
-    );
-
-    // タグ(配列)をカンマ区切りの文字列にし、日本語エンコード
-    const tags_str = unescape(
-    encodeURIComponent((Nicovideo.video_tags || []).join(", "))
-    );
-
-    // ジャンルとシリーズは日本語が入っているとエラーになるのでエンコード
-    //unescapeは非推奨だが見なかったことにする
-    const genre_str = unescape(encodeURIComponent(Nicovideo.video_genre));
-    const series_str = unescape(encodeURIComponent(Nicovideo.video_series));
-
-    //拡張子を設定
-    NicoDownloader.SetVideFormatByExtension(mode);
-
-    // 出力ファイル名を設定
-    NicoDownloader.FSOutputFileNameSet(Nicovideo);
-    const outputFileName = NicoDownloader.FSOutputFileNameGet();
-
-    DebugPrint(`OutputFileName: ${outputFileName}`);
-
-    console.log("=== FFmpeg変換開始 ===");
-    console.log(`入力ファイル: ${m3u8name}`);
-    console.log(`出力ファイル: ${outputFileName}`);
-    console.log(`変換モード: ${mode}`);
-
-    //ffmpeg実行
-    ffmpeg(Core, [
-      "-allowed_extensions",
-      "ALL",
-      "-i",
-      m3u8name,
-      "-metadata",
-      `title=${title_str}`, // タイトル
-      "-metadata",
-      `show=${title_str}`, // タイトル
-      "-metadata",
-      `creation_time=${timestamp_str}`, // 登録日時
-      "-metadata",
-      `date=${timestamp_str}`, // 登録日時
-      "-metadata",
-      `artist=${username_str}`, // 投稿ユーザ
-      "-metadata",
-      `description=${description_str}`, // 説明
-      "-metadata",
-      `comment=${description_str}`, // 説明
-      "-metadata",
-      `keywords=${tags_str}`, //タグ
-      "-metadata",
-      `genre=${genre_str}`, // ジャンル
-      "-metadata",
-      `publisher=nicovideo.jp`, // パブリッシャ
-      "-metadata",
-      `episode_id=${Nicovideo.video_sm}`, // 動画ID
-      "-metadata",
-      `album=${series_str}`, // シリーズ
-      "-metadata",
-      `album_artist=${username_str}`, // 投稿ユーザ
-      ...(mode === "aac"
-        ? ["-vn", "-c:a", "copy"] // aacモードで最初のオーディオストリームを選択
-        : ["-c", "copy"]), // MP4モードでオーディオ・ビデオをコピー
-      outputFileName,
-    ]);
-
-    // FFmpegコマンドの引数をログ出力
-    const ffmpegArgs = [
-      "-allowed_extensions", "ALL", "-i", m3u8name,
-      "-metadata", `title=${title_str}`,
-      "-metadata", `show=${title_str}`,
-      "-metadata", `creation_time=${timestamp_str}`,
-      "-metadata", `date=${timestamp_str}`,
-      "-metadata", `artist=${username_str}`,
-      "-metadata", `description=${description_str}`,
-      "-metadata", `comment=${description_str}`,
-      "-metadata", `genre=${genre_str}`,
-      "-metadata", `publisher=nicovideo.jp`,
-      "-metadata", `episode_id=${Nicovideo.video_sm}`,
-      "-metadata", `album=${series_str}`,
-      "-metadata", `album_artist=${username_str}`,
-      ...(mode === "aac" ? ["-vn", "-c:a", "copy"] : ["-c", "copy"]),
-      outputFileName
-    ];
-    console.log(`FFmpegコマンド: ffmpeg ${ffmpegArgs.join(" ")}`);
-    console.log("=== 変換処理開始 ===");
-  } catch (err) {
-    //エラーが出たら
-    DebugPrint("runFFmpeg:" + err);
+    status = ffmpeg(Core, args);
+  } catch (error) {
+    // 同梱CoreはFFMPEG_ENDを通知した後、正常終了でもExitStatus(0)を投げる。
+    if (error?.name !== "ExitStatus") throw error;
+    status = error.status;
   }
-
-  //終了を待つ
-  await waitEnd;
-
-  //終了後
-  DebugPrint("waitEnd");
+  if (status !== 0) throw new Error(`FFmpeg exited with status ${status}`);
+  console.log("=== FFmpeg変換終了 ===");
 };
 
 /**
@@ -362,6 +288,10 @@ async function DownEncoder(NicoDownloader, m3u8s, Nicovideo) {
 
   Transcode(core, m3u8name, NicoDownloader, Nicovideo).then(() => {
     NicoDownloader.VideoDownloadingReset(); // ダウンロード中をリセット
+  }).catch((error) => {
+    console.error("動画の変換に失敗しました:", error);
+    NicoDownloader.VideoDownloadingReset();
+    NicoDownloader.ButtonTextWrite("変換に失敗しました");
   });
 
   return true;
@@ -425,12 +355,12 @@ async function DownloadUint8Array(url, NicoDownloader) {
 
 ////////////////////////////////////////////////////////////////////////
 /**
- * 変換処理してファイルを返す
+ * 指定された形式で変換する（保存データの読み出しはFFMPEG_END側で行う）
  * @param {Core} Core
  * @param {String} m3u8name
  * @param {NicoDownloaderClass} NicoDownloader
  * @param {NicovideoClass} Nicovideo
- * @returns {Object} file
+ * @returns {Promise<void>}
  */
 ////////////////////////////////////////////////////////////////////////
 async function Transcode(Core, m3u8name, NicoDownloader, Nicovideo) {
@@ -439,14 +369,7 @@ async function Transcode(Core, m3u8name, NicoDownloader, Nicovideo) {
   if (mode == 0) mode = "mp4"; // モードが取得できなかった場合はデフォルトのmp4にする
 
   console.log(`Current mode: ${mode}`); // モードを確認するログ
-  const file = await runFFmpeg_m3u8(
-    Core,
-    m3u8name,
-    NicoDownloader,
-    Nicovideo,
-    mode
-  );
-  return file;
+  return runFFmpeg_m3u8(Core, m3u8name, NicoDownloader, Nicovideo, mode);
 }
 
 ////////////////////////////////////////////////////////////////////////
