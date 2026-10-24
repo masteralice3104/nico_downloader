@@ -220,6 +220,7 @@ function StartInitialButtonObserver() {
     let observing = true;
 
     const refresh = () => {
+        domandPlaylistCapture.syncRoute();
         const routeId = location.href.match(/^https:\/\/www\.nicovideo\.jp\/watch\/([^/?#]+)/)?.[1];
         if (!routeId) return;
         const videoId = settings ? location.href.match(settings.video_pattern)?.[0] : routeId;
@@ -248,7 +249,7 @@ function StartInitialButtonObserver() {
         // 通常処理が描画したタイトル・進捗・完了表示には触れない。
         if (wrapper && !["1", "settings"].includes(wrapper.dataset.ndlInitialPending)) return;
         if (wrapper?.dataset.ndlInitialPending === "1" && settings.video_hlssave !== "0" &&
-            !document.querySelector(VideoData.PlayerSettingQuery)) return;
+            !domandPlaylistCapture.available() && !document.querySelector(VideoData.PlayerSettingQuery)) return;
         const downloader = new NicoDownloaderClass();
         downloader.Savemode = settings.video_hlssave;
         downloader.LangSetting = settings.language_setting;
@@ -280,6 +281,7 @@ function StartInitialButtonObserver() {
     });
     observe();
     schedule();
+    window.addEventListener("nico-downloader-playlist-ready", schedule);
     window.addEventListener("popstate", schedule);
     window.addEventListener("hashchange", schedule);
     window.addEventListener("pagehide", () => {
@@ -318,3 +320,165 @@ function StartInitialButtonObserver() {
         schedule();
     });
 }
+
+
+// 読込記録からURL候補を収集し、親プレイリストと確認できたものだけを使う。
+class DomandPlaylistCapture {
+    constructor() {
+        this.route = this.videoAt(location.href);
+        this.since = 0;
+        this.generation = 0;
+        this.seen = new Set();
+        this.queue = [];
+        this.controllers = new Set();
+        this.active = 0;
+        this.closed = false;
+        this.candidate = null;
+        this.requested = null;
+        try {
+            const navigation = performance.getEntriesByType("navigation")[0];
+            // 拡張の起動前にSPA遷移済みなら、古いページのバッファーを採用しない。
+            if (navigation && this.videoAt(navigation.name) !== this.route) this.since = this.now();
+            this.accept(performance.getEntriesByType("resource"));
+            if (typeof PerformanceObserver === "function") {
+                this.observer = new PerformanceObserver((list) => this.accept(list.getEntries()));
+                this.observer.observe({ type: "resource", buffered: true });
+            }
+        } catch (error) {
+            console.debug("リソースURL監視を開始できませんでした。従来の取得方法を使います。", error);
+        }
+        window.addEventListener("popstate", () => this.syncRoute());
+        window.addEventListener("hashchange", () => this.syncRoute());
+        window.navigation?.addEventListener("currententrychange", () => this.syncRoute());
+        window.addEventListener("pagehide", () => {
+            this.closed = true;
+            this.observer?.disconnect();
+            this.reset();
+        });
+        window.addEventListener("pageshow", (event) => {
+            if (!event.persisted) return;
+            this.closed = false;
+            this.reset();
+            try {
+                this.observer?.observe({ type: "resource", buffered: false });
+            } catch (error) {
+                console.debug("リソースURL監視の再開に失敗しました。", error);
+            }
+        });
+    }
+
+    now() {
+        return typeof performance !== "undefined" ? performance.now() : Date.now();
+    }
+
+    videoAt(address) {
+        try {
+            const url = new URL(address);
+            return url.origin === "https://www.nicovideo.jp" ? url.pathname.match(/^\/watch\/([^/]+)\/?$/)?.[1] || null : null;
+        } catch (error) {
+            return null;
+        }
+    }
+
+    matches(address) {
+        try {
+            const url = new URL(address);
+            return url.origin === "https://delivery.domand.nicovideo.jp" && !url.username && !url.password &&
+                /^\/hlsbid\/[^/]+\/playlists\/.+$/.test(url.pathname);
+        } catch (error) {
+            return false;
+        }
+    }
+
+    reset() {
+        this.route = this.videoAt(location.href);
+        this.since = this.now();
+        this.generation++;
+        this.seen.clear();
+        this.queue = [];
+        this.candidate = null;
+        this.requested = null;
+        for (const controller of this.controllers) controller.abort();
+    }
+
+    syncRoute() {
+        if (this.videoAt(location.href) !== this.route) this.reset();
+        return this.route;
+    }
+
+    accept(entries) {
+        const route = this.syncRoute();
+        if (this.closed || !route) return;
+        for (const entry of entries) {
+            if (entry.entryType !== "resource" || !Number.isFinite(entry.startTime) ||
+                entry.startTime < this.since || !this.matches(entry.name) || this.seen.has(entry.name)) continue;
+            if (this.seen.size >= 64) this.seen.delete(this.seen.values().next().value);
+            this.seen.add(entry.name); // 確認用fetch自身の記録による再取得を防ぐ。
+            this.queue.push({ url: entry.name, startTime: entry.startTime, route, generation: this.generation });
+            if (this.queue.length > 8) this.queue.shift();
+        }
+        this.pump();
+    }
+
+    pump() {
+        while (!this.closed && this.active < 2 && this.queue.length) {
+            const entry = this.queue.shift();
+            this.active++;
+            this.verify(entry).finally(() => {
+                this.active--;
+                this.pump();
+            });
+        }
+    }
+
+    async verify(entry) {
+        const controller = new AbortController();
+        this.controllers.add(controller);
+        const timer = setTimeout(() => controller.abort(), 5000);
+        try {
+            const response = await fetch(entry.url, { credentials: "include", signal: controller.signal });
+            if (!response.ok || (response.url && !this.matches(response.url))) return;
+            const size = Number(response.headers?.get("content-length"));
+            if (size > 512 * 1024) return;
+            const text = await response.text();
+            if (text.length > 512 * 1024) return;
+            const audio = text.split(/\r?\n/).some((line) => line.startsWith("#EXT-X-MEDIA:") &&
+                /(?:^|,)TYPE=AUDIO(?:,|$)/.test(line.slice(13)) && /(?:^|,)URI="[^"]+"/.test(line.slice(13)));
+            if (!/^\uFEFF?#EXTM3U\r?\n/.test(text) || !/^#EXT-X-STREAM-INF:/m.test(text) ||
+                /^#EXTINF:/m.test(text) || !audio) return;
+            if (this.closed || this.syncRoute() !== entry.route || this.generation !== entry.generation) return;
+            if (!this.candidate || entry.startTime >= this.candidate.startTime) {
+                this.candidate = { ...entry, checkedAt: this.now() };
+                console.log("[nico downloader] 親m3u8取得成功:", entry.url);
+                window.dispatchEvent(new Event("nico-downloader-playlist-ready"));
+            }
+        } catch (error) {
+            // URLを確認できなければ候補にせず、従来のシステムメッセージ経路を使う。
+        } finally {
+            clearTimeout(timer);
+            this.controllers.delete(controller);
+        }
+    }
+
+    available() {
+        this.syncRoute();
+        // 署名付きURLは古い候補を使わず、従来の取得方法へ戻す。
+        return !this.closed && this.candidate && this.now() - this.candidate.checkedAt < 60000
+            ? this.candidate : null;
+    }
+
+    claim(event) {
+        const candidate = this.available();
+        if (!candidate) return; // 既存のonclickをそのまま実行し、システムメッセージを開く。
+        event.preventDefault();
+        event.stopImmediatePropagation();
+        this.requested = candidate; // 保存ボタンを押すまでダウンロード開始条件にしない。
+    }
+
+    requestedURL() {
+        const route = this.syncRoute();
+        return !this.closed && this.requested?.route === route ? this.requested.url : false;
+    }
+}
+
+const domandPlaylistCapture = new DomandPlaylistCapture();

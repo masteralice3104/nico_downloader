@@ -464,7 +464,7 @@ class NicoDownloaderClass {
             return false;
         }
         //SystemMessageが読み込めるかどうかを判別する
-        if (this.CheckSystemMessageContainer() == false) return false;
+        if (!this.ObservedMasterURLGet() && this.CheckSystemMessageContainer() == false) return false;
 
 
         //DLlinkを強制的に読み込む
@@ -606,9 +606,15 @@ class NicoDownloaderClass {
         const innerHTML = this.SaveButtonInnerHTMLMake(video_name);
         this.ButtonInnerHTMLWrite(innerHTML);
         const wrapper = document.getElementById(VideoData.Video_DLlink.p);
-        const ready = this.Savemode == "0" || !!document.querySelector(VideoData.PlayerSettingQuery);
+        const capture = typeof domandPlaylistCapture !== "undefined" ? domandPlaylistCapture : null;
+        const ready = this.Savemode == "0" || !!capture?.available() || !!document.querySelector(VideoData.PlayerSettingQuery);
         const button = document.getElementById(VideoData.Video_DLlink.a).querySelector("button");
-        if (button) button.disabled = !ready;
+        if (button) {
+            button.disabled = !ready;
+            if (this.Savemode != "0" && capture) {
+                button.addEventListener("click", (event) => capture.claim(event), { capture: true });
+            }
+        }
         if (wrapper) {
             wrapper.dataset.ndlInitialPending = ready ? "0" : "1";
             wrapper.dataset.ndlInitialName = video_name;
@@ -645,11 +651,17 @@ class NicoDownloaderClass {
 
     ////////////////////////////////////////////////////////////////////////
     /**
-     * SystemMessageContainerからmasterURLを取得
+     * 観測済みの親URLを優先し、取得できなければSystemMessageContainerから取得
      * @returns {String} masterURL
      */
     ////////////////////////////////////////////////////////////////////////
+    ObservedMasterURLGet() {
+        return typeof domandPlaylistCapture !== "undefined" ? domandPlaylistCapture.requestedURL() : false;
+    }
+
     MasterURLGet() {
+        const observed = this.ObservedMasterURLGet();
+        if (observed) return observed;
         //メッセージより読み込み
         let rawMessage;
         let tempURL = '';
