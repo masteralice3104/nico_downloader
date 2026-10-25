@@ -51,6 +51,14 @@
 - **プロフェッショナル設定（ここの設定についてはサポートしません）。** 通常は変更不要です。
 - 画質選択・コメントのダウンロードは、現在の設定画面にはありません。
 
+## 感想・使用報告もお待ちしています
+
+開発者はTwitter（X）で「nico downloader」をエゴサしています。
+
+**ぜひ「nico downloader」を含めてツイートしてください！** 使ってみた感想や「動いた！」という使用報告など、お気軽にどうぞ。
+
+不具合の詳しい報告や対応が必要な内容は、[GitHubのIssue](https://github.com/masteralice3104/nico_downloader/issues/new)へお願いします。
+
 ## 不具合・要望・変更の提案
 
 うまく動かないときは、[Wikiの対処方法](https://github.com/masteralice3104/nico_downloader/wiki/困ったときは)を確認し、[Issueを作成してください](https://github.com/masteralice3104/nico_downloader/issues/new)。バージョン、通常動画／ショートの区別、再現手順、最後のエラーを日本語で記載してください。
