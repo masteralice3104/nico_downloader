@@ -16,6 +16,61 @@ const optionDefaults = {
 };
 let savedOptions = null;
 let optionsBusy = true;
+let savedGuideAcknowledged = "0";
+const pendingOptionChanges = new Map();
+const optionConflicts = new Set();
+
+function ShowOptionsEditingStatus(savedMessage = "保存済みの設定です。") {
+    if (!OptionsAcknowledged()) {
+        ShowOptionsStatus("先に上の使い方を確認してください。");
+        return;
+    }
+    const current = ReadOptionsForm();
+    for (const name of optionConflicts) {
+        if (current[name] === savedOptions[name]) optionConflicts.delete(name);
+    }
+    if (optionConflicts.size) {
+        ShowOptionsStatus("別の画面で同じ項目が変更されました。編集中の値は保持しています。保存するとこの画面の値を使います。");
+        return;
+    }
+    const dirty = Object.keys(optionDefaults).some(name => current[name] !== savedOptions[name]);
+    ShowOptionsStatus(dirty ? "変更はまだ保存されていません。" : savedMessage);
+}
+
+function ApplyPendingOptionChanges() {
+    if (!savedOptions || optionsBusy || !pendingOptionChanges.size) return false;
+    const current = ReadOptionsForm();
+    for (const [name, value] of pendingOptionChanges) {
+        if (name === "guide_acknowledged") {
+            const control = document.getElementById(name);
+            if (String(Number(control.checked)) === savedGuideAcknowledged) control.checked = value === "1";
+            savedGuideAcknowledged = value;
+            continue;
+        }
+        const editing = current[name] !== savedOptions[name];
+        // コントロールと同じ正規化で保存済みの基準値を更新する。
+        WriteOptionControl(name, value);
+        const normalized = ReadOptionControl(name);
+        savedOptions[name] = normalized;
+        if (editing) WriteOptionControl(name, current[name]);
+        if (editing && current[name] !== normalized) optionConflicts.add(name);
+        else optionConflicts.delete(name);
+    }
+    pendingOptionChanges.clear();
+    UpdateFilenamePreview();
+    SetOptionsBusy(false);
+    return true;
+}
+
+function ObserveOptionChanges(changes, area) {
+    if (area !== "local") return;
+    for (const [name, change] of Object.entries(changes)) {
+        if (!Object.prototype.hasOwnProperty.call(optionDefaults, name) && name !== "guide_acknowledged") continue;
+        const fallback = name === "guide_acknowledged" ? "0" : optionDefaults[name];
+        pendingOptionChanges.set(name, String(change.newValue ?? fallback));
+    }
+    if (ApplyPendingOptionChanges()) ShowOptionsEditingStatus("別の画面で変更された設定を反映しました。");
+}
 
 function ReadOptionControl(name) {
     const control = document.getElementById(name);
@@ -75,16 +130,18 @@ function UpdateFilenamePreview() {
 function OptionsChanged() {
     for (const name of ["video_pattern", "shorts_video_pattern"]) document.getElementById(name).setCustomValidity("");
     UpdateFilenamePreview();
-    if (!optionsBusy && savedOptions) {
-        const dirty = JSON.stringify(ReadOptionsForm()) !== JSON.stringify(savedOptions);
-        ShowOptionsStatus(dirty ? "変更はまだ保存されていません。" : "保存済みの設定です。");
-    }
+    if (!optionsBusy && savedOptions) ShowOptionsEditingStatus();
 }
 
 function Options_Save(event) {
     event?.preventDefault();
     if (optionsBusy || !savedOptions || !OptionsAcknowledged()) return;
+    ApplyPendingOptionChanges();
+    if (!OptionsAcknowledged()) { ShowOptionsEditingStatus(); return; }
     const values = ReadOptionsForm();
+    // この画面で編集したキーだけを書き込み、他画面の変更を巻き戻さない。
+    const edited = Object.fromEntries(Object.entries(values).filter(([name, value]) => value !== savedOptions[name]));
+    const expected = { ...edited, newloading: "1", guide_acknowledged: "1" };
     for (const [name, label] of [["video_pattern", "通常動画"], ["shorts_video_pattern", "ショート"]]) {
         const pattern = document.getElementById(name);
         try {
@@ -103,17 +160,17 @@ function Options_Save(event) {
     ShowOptionsStatus("保存中…");
     const onError = (error) => {
         SetOptionsBusy(false);
+        ApplyPendingOptionChanges();
         ShowOptionsStatus("保存できませんでした。もう一度お試しください。", true);
         console.error("設定の保存に失敗しました:", error);
     };
     try {
-        chrome.storage.local.set({ ...values, newloading: "1", guide_acknowledged: "1" }, () => {
+        chrome.storage.local.set(expected, () => {
             if (chrome.runtime.lastError) {
                 onError(chrome.runtime.lastError.message);
                 return;
             }
             // 書き込み通知だけで成功扱いにせず、実際の保存値を読み戻す。
-            const expected = { ...values, newloading: "1", guide_acknowledged: "1" };
             try {
                 chrome.storage.local.get(Object.keys(expected), (stored) => {
                     if (chrome.runtime.lastError) {
@@ -129,9 +186,14 @@ function Options_Save(event) {
                     } catch (error) {
                         console.warn("設定のローカル控えを更新できませんでした:", error);
                     }
-                    savedOptions = values;
+                    for (const [name, value] of Object.entries(edited)) {
+                        savedOptions[name] = value;
+                        optionConflicts.delete(name);
+                    }
+                    savedGuideAcknowledged = "1";
                     SetOptionsBusy(false);
-                    ShowOptionsStatus("設定を保存しました。");
+                    ApplyPendingOptionChanges();
+                    ShowOptionsEditingStatus("設定を保存しました。");
                 });
             } catch (error) {
                 onError(error);
@@ -158,6 +220,8 @@ function UpdateOptionsNavigation() {
 }
 
 function InitializeOptions() {
+    // 最初の読み込み中に別画面で変更された値も取りこぼさない。
+    chrome.storage.onChanged.addListener(ObserveOptionChanges);
     const acknowledgement = document.getElementById("guide_acknowledged");
     acknowledgement.checked = false;
     acknowledgement.addEventListener("change", () => {
@@ -184,9 +248,12 @@ function InitializeOptions() {
                 onError(chrome.runtime.lastError.message);
                 return;
             }
-            for (const name of Object.keys(optionDefaults)) WriteOptionControl(name, values[name]);
+            const latest = { ...values, ...Object.fromEntries(pendingOptionChanges) };
+            pendingOptionChanges.clear();
+            for (const name of Object.keys(optionDefaults)) WriteOptionControl(name, latest[name]);
             savedOptions = ReadOptionsForm();
-            acknowledgement.checked = String(values.guide_acknowledged) === "1";
+            savedGuideAcknowledged = String(latest.guide_acknowledged);
+            acknowledgement.checked = savedGuideAcknowledged === "1";
             UpdateFilenamePreview();
             SetOptionsBusy(false);
             if (!OptionsAcknowledged() && location.hash && location.hash !== "#help") location.hash = "#help";
