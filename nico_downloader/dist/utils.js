@@ -1,33 +1,20 @@
-//https://github.com/ffmpegwasm/ffmpeg.wasm-core/blob/1f3461d4162ea41dd714c5cae7fff08fda362ad8/wasm/examples/browser/js/utils.js
-//をもとに改造したもの
-//LGPL
-
+// 公式 @ffmpeg/core 0.12.10（単一スレッド版）。配布条件とソースは同梱LICENSEを参照。
 let last_save_sm = "";
 
-const parseArgs = (Core, args) => {
-  const argsPtr = Core._malloc(args.length * Uint32Array.BYTES_PER_ELEMENT);
-  args.forEach((s, idx) => {
-    const size = Core.lengthBytesUTF8(s) + 1;
-    const buf = Core._malloc(size);
-    Core.stringToUTF8(s, buf, size);
-    Core.setValue(argsPtr + Uint32Array.BYTES_PER_ELEMENT * idx, buf, "i32");
-  });
-  return [args.length, argsPtr];
-};
-
-// ffmpegの実行
+// 現行Coreのexec APIを使用する。resetは終了値をリセットし、仮想ファイルは保持する。
 const ffmpeg = (Core, args) => {
-  return Core.ccall(
-    "main",
-    "number",
-    ["number", "number"],
-    parseArgs(Core, ["ffmpeg", "-nostdin", ...args])
-  ); //https://github.com/naari3/nico-downloader-ffmpeg/blob/main/src/background.ts
+  try {
+    Core.setTimeout(-1);
+    Core.exec(...args);
+    return Core.ret;
+  } finally {
+    Core.reset();
+  }
 };
 
 /**
  * 変換引数を組み立てる。実行とログ表示で同じ配列を使う。
- * 日本語のUTF-8化はparseArgsで行う。
+ * 日本語のUTF-8化は公式Coreのexec APIで行う。
  */
 const makeFFmpegArgs = (m3u8name, Nicovideo, mode, outputFileName) => {
   const metadata = [
@@ -54,7 +41,7 @@ const makeFFmpegArgs = (m3u8name, Nicovideo, mode, outputFileName) => {
 };
 
 /**
- * 変換を実行する。保存は5.0.0.22のFFMPEG_ENDコールバックが担当する。
+ * 変換を実行し、終了コード0の場合だけ呼び出し元へ戻る。
  * @returns {Promise<void>}
  */
 const runFFmpeg_m3u8 = async (Core, m3u8name, NicoDownloader, Nicovideo, mode = "mp4") => {
@@ -69,14 +56,7 @@ const runFFmpeg_m3u8 = async (Core, m3u8name, NicoDownloader, Nicovideo, mode = 
   console.log(`変換モード: ${mode}`);
   console.log(`FFmpegコマンド: ffmpeg ${args.join(" ")}`);
 
-  let status;
-  try {
-    status = ffmpeg(Core, args);
-  } catch (error) {
-    // 同梱CoreはFFMPEG_ENDを通知した後、正常終了でもExitStatus(0)を投げる。
-    if (error?.name !== "ExitStatus") throw error;
-    status = error.status;
-  }
+  const status = ffmpeg(Core, args);
   if (status !== 0) throw new Error(`FFmpeg exited with status ${status}`);
   console.log("=== FFmpeg変換終了 ===");
 };
@@ -106,6 +86,34 @@ function FiletypeToMimetype(filetype) {
   }
 }
 
+function PrepareConvertedDownload(core, NicoDownloader, Nicovideo) {
+  if (last_save_sm === Nicovideo.video_sm) return false;
+  const file = core.FS.readFile(NicoDownloader.FSOutputFileNameGet());
+  if (!file.byteLength) throw new Error("変換出力が空です。");
+  const blob = new Blob([file.buffer], { type: FiletypeToMimetype(NicoDownloader.CheckVideoFormat()) });
+  let link;
+  let objectURL;
+  try {
+    const a = document.createElement("a");
+    a.id = VideoData.Video_DLlink.a2;
+    document.body.appendChild(a);
+    link = document.getElementById(VideoData.Video_DLlink.a2);
+    objectURL = URL.createObjectURL(blob);
+    link.href = objectURL;
+    link.download = Nicovideo.video_name;
+    link.style.display = "none";
+    document.body.click();
+    core.FS.unlink(NicoDownloader.FSOutputFileNameGet());
+    NicoDownloader.ButtonTextWrite("まもなく保存完了");
+    last_save_sm = Nicovideo.video_sm;
+    return true;
+  } catch (error) {
+    link?.remove();
+    if (objectURL) URL.revokeObjectURL(objectURL);
+    throw error;
+  }
+}
+
 //ここから追記
 /**
  * ダウンロードし変換する関数
@@ -116,84 +124,28 @@ function FiletypeToMimetype(filetype) {
  */
 async function DownEncoder(NicoDownloader, m3u8s, Nicovideo) {
   NicoDownloader.SetVideoFormat(Nicovideo.video_name); //フォーマットをセット
-  if (NicoDownloader.CheckVideoFormat() == false) return false; //フォーマットをチェック
+  if (NicoDownloader.CheckVideoFormat() == false) throw new Error("保存形式を判定できませんでした。");
 
-  //ダウンロード前のチェック処理
-  if (NicoDownloader.VideoDownloadingCheck()) {
-    //ダウンロード中は終了
-    return false;
-  } else {
-    NicoDownloader.VideoDownloadingSet(); //ダウンロード中フラグを立てる
-  }
-
+  // 開始・終了・失敗時の状態は呼び出し元のMovieDownload_domandが管理する。
   NicoDownloader.DownloadFaultNumReset(); //ダウンロードエラー数をリセット
 
   NicoDownloader.DownloadPercentageReset(); //パーセンテージをリセット
 
   //https://github.com/naari3/nico-downloader-ffmpeg/blob/main/src/background.ts  //偉大なる@_naari_氏による協力に感謝いたします
-  let file = null;
   
   console.log("=== FFmpeg初期化開始 ===");
   
+  const coreURL = chrome.runtime.getURL("dist/ffmpeg-core2.js");
+  const wasmURL = chrome.runtime.getURL("dist/ffmpeg-core.wasm");
   const core = await createFFmpegCore({
-    printErr: (e) => {
-      DebugPrint(`FFMPEG:${e}`);
-      // FFmpegの進捗情報を解析
-      parseFFmpegProgress(e, NicoDownloader);
-    },
-    print: (e) => {
-      DebugPrint(`FFMPEG: ${e}`);
-      // FFmpegの進捗情報を解析
-      parseFFmpegProgress(e, NicoDownloader);
-      if (e.startsWith("FFMPEG_END")) {
-        // FFMPEG_ENDで終了
-        //終了時の処理
-        NicoDownloader.ButtonTextWrite("変換終了");
-        DebugPrint("FFMPEG_END 変換終了");
-        if (last_save_sm !== Nicovideo.video_sm) {
-          try {
-            last_save_sm = Nicovideo.video_sm;
-            //NicoDownloader.FSOutputFileNameSet(Nicovideo);
-
-            file = core.FS.readFile(NicoDownloader.FSOutputFileNameGet());
-            console.log({ file });
-
-            //ファイルの保存処理
-            DebugPrint("ファイルの保存処理");
-            //blob
-            const blob = new Blob([file.buffer], {
-              //MIMEタイプを設定
-              type: FiletypeToMimetype(NicoDownloader.CheckVideoFormat()),
-            });
-            DebugPrint("Blob作成完了");
-
-            //ディスクへの保存処理
-            const a = document.createElement("a");
-            const fileName = Nicovideo.video_name;
-
-            a.id = VideoData.Video_DLlink.a2;
-            document.body.appendChild(a);
-
-            const link = document.getElementById(VideoData.Video_DLlink.a2);
-            link.href = URL.createObjectURL(blob);
-            link.download = fileName;
-
-            link.style.display = "none";
-
-            document.body.click();
-
-            core.FS.unlink(NicoDownloader.FSOutputFileNameGet());
-            NicoDownloader.ButtonTextWrite("まもなく保存完了");
-          } catch (e) {
-            console.error("Error:FaildedToBlob\n", e);
-          }
-        } else {
-          DebugPrint("Error:既に保存済み");
-        }
-      }
-    },
+    // 既存ファイル名のまま、拡張機能内のWASMだけを読み込む。
+    mainScriptUrlOrBlob: coreURL + "#" + btoa(JSON.stringify({ wasmURL, workerURL: "" })),
   });
-  console.debug({ core });
+  core.setLogger(({ message }) => {
+    const output = String(message);
+    DebugPrint(`FFMPEG: ${output}`);
+    parseFFmpegProgress(output, NicoDownloader);
+  });
 
   //URLsを片っ端から処理
   //落としてファイルシステムにいれていく
@@ -251,7 +203,10 @@ async function DownEncoder(NicoDownloader, m3u8s, Nicovideo) {
     // BATCH_SIZE個毎、または最後の要素でバッチ処理を実行
     if (promises.length >= BATCH_SIZE || i === NicoDownloader.TSURLs.length - 1) {
       try {
-        await Promise.all(promises);
+        // 失敗した1件だけで先へ戻らず、同じバッチの書き込み完了も待つ。
+        const results = await Promise.allSettled(promises);
+        const failed = results.find((result) => result.status === "rejected");
+        if (failed) throw failed.reason;
         promises = []; // バッチが完了したらpromises配列をクリア
         
         // ガベージコレクションを強制実行
@@ -286,15 +241,9 @@ async function DownEncoder(NicoDownloader, m3u8s, Nicovideo) {
   const m3u8name = m3u8s[m3u8s.length - 1];
   NicoDownloader.ButtonTextWrite("結合処理中");
 
-  Transcode(core, m3u8name, NicoDownloader, Nicovideo).then(() => {
-    NicoDownloader.VideoDownloadingReset(); // ダウンロード中をリセット
-  }).catch((error) => {
-    console.error("動画の変換に失敗しました:", error);
-    NicoDownloader.VideoDownloadingReset();
-    NicoDownloader.ButtonTextWrite("変換に失敗しました");
-  });
-
-  return true;
+  await Transcode(core, m3u8name, NicoDownloader, Nicovideo);
+  NicoDownloader.ButtonTextWrite("変換終了");
+  return PrepareConvertedDownload(core, NicoDownloader, Nicovideo);
 }
 
 ////////////////////////////////////////////////////////////////////////
@@ -355,7 +304,7 @@ async function DownloadUint8Array(url, NicoDownloader) {
 
 ////////////////////////////////////////////////////////////////////////
 /**
- * 指定された形式で変換する（保存データの読み出しはFFMPEG_END側で行う）
+ * 指定された形式で変換する（成功後の出力読み出しは呼び出し元が行う）
  * @param {Core} Core
  * @param {String} m3u8name
  * @param {NicoDownloaderClass} NicoDownloader
@@ -452,6 +401,7 @@ function sleep(waitMsec) {
  */
 ////////////////////////////////////////////////////////////////////////
 function parseFFmpegProgress(output, NicoDownloader) {
+  output = String(output);
   // メモリ不足エラーを検出
   if (output.includes("Array buffer allocation failed") || 
       output.includes("RangeError") || 

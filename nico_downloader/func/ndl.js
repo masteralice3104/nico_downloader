@@ -310,7 +310,7 @@ class NicoDownloaderClass {
      */
     ////////////////////////////////////////////////////////////////////////
     VideoDownloadingCheck() {
-        return this.downloading;
+        return NicovideoDownloader__NowDownloading;
         //true:ダウンロード中
         //false:ダウンロードしていない
     }

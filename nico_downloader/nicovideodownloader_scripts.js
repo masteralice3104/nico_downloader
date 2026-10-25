@@ -1,4 +1,5 @@
 //ダウンロード関数
+let failedDownloadId = null;
 
 async function VideoDown() {
     // 必要なクラスの初期化
@@ -24,6 +25,8 @@ async function VideoDown() {
         DebugPrint("video_sm is empty; the current URL did not match video_pattern");
         return false;
     }
+
+    if (failedDownloadId === Nicovideo.video_sm) return false;
 
     // 動画情報APIが失敗しても、ページ上のタイトルを使ってボタンを表示できるようにする
     try {
@@ -75,63 +78,22 @@ async function VideoDown() {
         });
     }
 
-    //ダウンロードリンクの表示
-    if (!NicoDownloader.VideoLoadedCheck(Nicovideo.video_sm)) {
-        //ここがtrueになるとすでに読み込み済み
-
-        new Promise((resolve, reject) => {
-            //ボタンをとりあえず作成
-            if (!NicoDownloader.ButtonFirstMake(Nicovideo.video_sm)) {
-                reject("保存ボタンの表示先は読み込み待ちです");
-                return;
-            }
-
-            NicoDownloader.ButtonTextWrite("処理開始"); //ボタンの文字を変更
-
-            // 保存ボタンを作成
-            DebugPrint("video_name_savebutton:" + Nicovideo.video_name);
-            NicoDownloader.SaveButtonMake(Nicovideo.video_name);
-
-            //ダウンロード前のチェック処理
-            if (NicoDownloader.CheckBeforeDownload() == false)
-                reject("CheckBeforeDownload ERROR");
-
-            if (NicoDownloader.VideoDownloadingCheck()) reject("Now Downloading"); //ダウンロード中は終了
-
-            // resolve
-            resolve();
-        })
-            .then(() => {
-                ////////////////////////////////////////////////////////////////
-                // ここから実行部分
-                ////////////////////////////////////////////////////////////////
-
-                // systemMessageContainerからmasterURLを取得
-                const masterURL = NicoDownloader.MasterURLGet();
-                if (masterURL == false) return false; // masterURLが取得できなかった場合は終了
-
-                DebugPrint("masterURL:" + masterURL);
-
-                if (NicoDownloader.VideoDownloadingCheck()) return false; //ダウンロード中は終了
-
-                //delivery.domand.nicovideo.jpの処理はこちら！
-                if (masterURL.indexOf("delivery.domand.nicovideo.jp") != -1) {
-                    // ダウンロード処理
-                    MovieDownload_domand(Nicovideo, NicoDownloader).then(() => {
-                        NicoDownloader.VideoDownloadingReset(); // ダウンロード中をリセット
-                    });
-
-                    NicoDownloader.VideoLoadedSMIDSet(Nicovideo.video_sm); // ダウンロードしたsm番号を記録
-                }
-            })
-            .catch((value) => {
-                DebugPrint("NDLDL");
-                DebugPrint(value);
-                return false;
-            });
+    if (NicoDownloader.VideoLoadedCheck(Nicovideo.video_sm)) return true;
+    if (!NicoDownloader.ButtonFirstMake(Nicovideo.video_sm)) return false;
+    NicoDownloader.SaveButtonMake(Nicovideo.video_name);
+    if (!NicoDownloader.CheckBeforeDownload() || NicoDownloader.VideoDownloadingCheck()) return false;
+    const masterURL = NicoDownloader.MasterURLGet();
+    if (!masterURL || !masterURL.includes("delivery.domand.nicovideo.jp")) return false;
+    try {
+        const completed = await MovieDownload_domand(Nicovideo, NicoDownloader);
+        if (completed) NicoDownloader.VideoLoadedSMIDSet(Nicovideo.video_sm);
+        return completed;
+    } catch (error) {
+        console.error("ダウンロード処理に失敗しました:", error);
+        return false;
     }
-    return true;
 }
+
 let interval1st = false;
 let intervalId;
 try {
@@ -175,45 +137,57 @@ function documentWriteText(URItext) {
  */
 
 async function MovieDownload_domand(Nicovideo, NicoDownloader) {
-    //Firstm3u8URLを取得
-    const Firstm3u8URL = NicoDownloader.MasterURLGet();
+    if (NicoDownloader.VideoDownloadingCheck()) return false;
+    NicoDownloader.VideoDownloadingSet();
+    try {
+        NicoDownloader.ButtonTextWrite("処理中");
+        //Firstm3u8URLを取得
+        const Firstm3u8URL = NicoDownloader.MasterURLGet();
 
-    //Firstm3u8URLの取得に失敗した場合は終了
-    if (Firstm3u8URL == false) return false;
+        //Firstm3u8URLの取得に失敗した場合は終了
+        if (Firstm3u8URL == false) throw new Error("親m3u8のURLを取得できませんでした。");
 
-    //Firstm3u8URLの取得に成功した場合
-    await NicoDownloader.URLToM3u8Set("First", Firstm3u8URL); //Firstm3u8URLをセット
+        //Firstm3u8URLの取得に成功した場合
+        await NicoDownloader.URLToM3u8Set("First", Firstm3u8URL); //Firstm3u8URLをセット
 
-    //Firstm3u8URLからaudio_m3u8_URLとvideo_m3u8_URLを取得
-    if (NicoDownloader.M3u8ToAudioAndVideoUrlSet() == false) return false;
+        //Firstm3u8URLからaudio_m3u8_URLとvideo_m3u8_URLを取得
+        if (NicoDownloader.M3u8ToAudioAndVideoUrlSet() == false) throw new Error("映像・音声のURLを取得できませんでした。");
 
-    //audio_m3u8_URLとvideo_m3u8_URLを取得できた場合
-    //audio_m3u8_URLとvideo_m3u8_URLを元にaudio_m3u8_bodyとvideo_m3u8_bodyを取得
-    await NicoDownloader.URLToM3u8Set("Audio", NicoDownloader.M3u8.AudioM3u8URL);
-    await NicoDownloader.URLToM3u8Set("Video", NicoDownloader.M3u8.VideoM3u8URL);
+        //audio_m3u8_URLとvideo_m3u8_URLを取得できた場合
+        //audio_m3u8_URLとvideo_m3u8_URLを元にaudio_m3u8_bodyとvideo_m3u8_bodyを取得
+        await NicoDownloader.URLToM3u8Set("Audio", NicoDownloader.M3u8.AudioM3u8URL);
+        await NicoDownloader.URLToM3u8Set("Video", NicoDownloader.M3u8.VideoM3u8URL);
 
-    // m3u8sを取得
-    const m3u8s = [
-        NicoDownloader.M3u8Class.ReplaceURLToM3u8s(NicoDownloader.M3u8.AudioBody),
-        NicoDownloader.M3u8Class.ReplaceURLToM3u8s(NicoDownloader.M3u8.VideoBody),
-        NicoDownloader.M3u8Class.ReplaceURLToM3u8s(NicoDownloader.M3u8.FirstBody),
-        NicoDownloader.M3u8Class.MakeTSFilename(NicoDownloader.M3u8.AudioM3u8URL),
-        NicoDownloader.M3u8Class.MakeTSFilename(NicoDownloader.M3u8.VideoM3u8URL),
-        NicoDownloader.M3u8Class.MakeTSFilename(Firstm3u8URL),
-    ];
+        // m3u8sを取得
+        const m3u8s = [
+            NicoDownloader.M3u8Class.ReplaceURLToM3u8s(NicoDownloader.M3u8.AudioBody),
+            NicoDownloader.M3u8Class.ReplaceURLToM3u8s(NicoDownloader.M3u8.VideoBody),
+            NicoDownloader.M3u8Class.ReplaceURLToM3u8s(NicoDownloader.M3u8.FirstBody),
+            NicoDownloader.M3u8Class.MakeTSFilename(NicoDownloader.M3u8.AudioM3u8URL),
+            NicoDownloader.M3u8Class.MakeTSFilename(NicoDownloader.M3u8.VideoM3u8URL),
+            NicoDownloader.M3u8Class.MakeTSFilename(Firstm3u8URL),
+        ];
 
-    // TSファイルのURLを取得
-    NicoDownloader.TSURLs =
-        NicoDownloader.M3u8Class.MakeURLListToTSURLs(NicoDownloader);
+        // TSファイルのURLを取得
+        NicoDownloader.TSURLs =
+            NicoDownloader.M3u8Class.MakeURLListToTSURLs(NicoDownloader);
 
-    // TSファイル名を取得
-    NicoDownloader.TSFilenames =
-        NicoDownloader.M3u8Class.MakeTSFileNameListtoArray(NicoDownloader);
+        // TSファイル名を取得
+        NicoDownloader.TSFilenames =
+            NicoDownloader.M3u8Class.MakeTSFileNameListtoArray(NicoDownloader);
 
-    NicoDownloader.ButtonTextWrite("処理中"); //ボタンの文字を変更
-    DownEncoder(NicoDownloader, m3u8s, Nicovideo);
+        return await DownEncoder(NicoDownloader, m3u8s, Nicovideo);
+    } catch (error) {
+        failedDownloadId = Nicovideo.video_sm;
+        if (shortsDownloadRequested === Nicovideo.video_sm) shortsDownloadRequested = null;
+        if (domandPlaylistCapture.requested?.route === Nicovideo.video_sm) domandPlaylistCapture.requested = null;
+        const wrapper = document.getElementById(VideoData.Video_DLlink.p);
+        if (wrapper?.dataset.ndlVideoId === Nicovideo.video_sm) NicoDownloader.ButtonTextWrite("ダウンロードに失敗しました");
+        throw error;
+    } finally {
+        NicoDownloader.VideoDownloadingReset();
+    }
 }
-
 
 let shortsDownloadRequested = null;
 let shortVideoPattern = "ss[0-9]{1,}";
@@ -577,6 +551,8 @@ class DomandPlaylistCapture {
 
     async claim(event) {
         const route = this.syncRoute();
+        // 失敗後の定期確認による自動再実行を止め、明示的なクリックで再開する。
+        if (failedDownloadId === route) failedDownloadId = null;
         if (IsShortVideoPage() && (NicovideoDownloader__NowDownloading || NicovideoDownloader__LoadedVideoSMID === route)) {
             event.preventDefault();
             event.stopImmediatePropagation();
