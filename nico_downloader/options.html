@@ -23,7 +23,7 @@
     .advanced{margin-top:12px;padding:0;border:0;background:transparent}.advanced summary{padding:8px 0;font-size:12px;font-weight:400;color:var(--muted)}.advanced summary:hover{color:var(--text)}.advanced-content{padding:20px 0 8px}.advanced .field label{background:var(--surface)}
     .filename-parts{grid-template-columns:repeat(3,minmax(0,1fr))}.shorts-preview-label{margin-top:12px}#shorts_filename_preview{font-family:ui-monospace,Consolas,monospace;font-size:14px;overflow-wrap:anywhere}#filename_custom_fields[hidden]{display:none}
     @media(max-width:480px){.filename-parts{grid-template-columns:1fr}}
-    .issue-guide{margin-top:24px;color:var(--muted);font-size:14px}
+    .issue-guide{margin:0 0 28px}.issue-button{display:flex;align-items:center;justify-content:center;gap:12px;min-height:76px;width:100%;padding:20px;border-radius:16px;background:var(--primary);color:var(--on-primary);font-size:clamp(20px,3vw,26px);font-weight:700;line-height:1.4;text-align:center;text-decoration:none}.issue-button:hover{filter:brightness(.94)}.issue-button svg{width:28px;height:28px}.issue-guide p{margin-top:10px;color:var(--muted);font-size:14px;text-align:center}
   </style>
 </head>
 <body>
@@ -39,6 +39,7 @@
       <a href="#display"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 4h18v14h-8v2h4v2H7v-2h4v-2H3V4Zm2 2v10h14V6H5Z"/></svg>表示</a>
     </nav>
     <main id="setting">
+      <div class="issue-guide"><a class="issue-button" href="https://github.com/masteralice3104/nico_downloader/issues/new" target="_blank" rel="noopener noreferrer" aria-describedby="issue-help"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M19 19H5V5h7V3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7h-2v7ZM14 3v2h3.59l-9.83 9.83 1.41 1.41L19 6.41V10h2V3h-7Z"/></svg><span>Issueを作る！</span></a><p id="issue-help">うまく動かないときは、不具合や要望をGitHubで報告してください。</p></div>
       <section class="help" id="help" aria-labelledby="help-heading">
         <span class="guide-required">必ずお読みください</span>
         <h2 id="help-heading">設定の前に、使い方を確認してください</h2>
@@ -80,7 +81,6 @@
             </div></details>
         </fieldset>
       </form>
-      <p class="issue-guide">うまく動かないときは、<a href="https://github.com/masteralice3104/nico_downloader/issues/new" target="_blank" rel="noopener noreferrer">GitHubでIssueを作成してください</a>。</p>
       <footer class="footer"><div class="footer-links"><a href="https://github.com/masteralice3104/nico_downloader/wiki" target="_blank" rel="noopener noreferrer">Wiki・使い方</a><a href="https://github.com/masteralice3104/nico_downloader#リリースノート" target="_blank" rel="noopener noreferrer">リリースノート</a><a href="https://github.com/masteralice3104/nico_downloader/issues" target="_blank" rel="noopener noreferrer">不具合の報告</a></div><span id="version"></span></footer>
     </main>
   </div>

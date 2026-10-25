@@ -70,9 +70,14 @@ const runFFmpeg_m3u8 = async (Core, m3u8name, NicoDownloader, Nicovideo, mode = 
   console.log(`変換モード: ${mode}`);
   console.log(`FFmpegコマンド: ffmpeg ${args.join(" ")}`);
 
-  const status = ffmpeg(Core, args);
-  if (status !== 0) throw new Error(`FFmpeg exited with status ${status}`);
-  console.log("=== FFmpeg変換終了 ===");
+  const outputBuffer = mode === "mp4" ? CreateMP4OutputBuffer(Core, outputFileName) : null;
+  try {
+    const status = ffmpeg(Core, args);
+    if (status !== 0) throw new Error(`FFmpeg exited with status ${status}`);
+    console.log("=== FFmpeg変換終了 ===");
+  } finally {
+    outputBuffer?.dispose();
+  }
 };
 
 /**
@@ -104,7 +109,17 @@ function FiletypeToMimetype(filetype) {
 // moovが末尾の既存出力を対象にし、映像データを移動・全体コピーしない。
 function MakeMP4MetadataParts(file, video) {
   try {
-    const view = new DataView(file.buffer, file.byteOffset, file.byteLength);
+    const paged = typeof file.readRange === "function";
+    const length = paged ? file.size : file.byteLength;
+    const bytes = (start, end) => paged ? file.readRange(start, end - start) : file.subarray(start, end);
+    const slices = (start = 0, end = length) => paged ? file.parts(start, end) : [file.subarray(start, end)];
+    const view = paged ? {
+      getUint32: position => new DataView(bytes(position, position + 4).buffer).getUint32(0),
+      getBigUint64: position => new DataView(bytes(position, position + 8).buffer).getBigUint64(0),
+      setUint32(position, value) {
+        const data = new Uint8Array(4); new DataView(data.buffer).setUint32(0, value); file.writeRange(position, data);
+      },
+    } : new DataView(file.buffer, file.byteOffset, file.byteLength);
     const atoms = (start, end) => {
       const result = [];
       for (let pos = start; pos < end;) {
@@ -115,14 +130,14 @@ function MakeMP4MetadataParts(file, video) {
           size = Number(view.getBigUint64(pos + 8)); header = 16;
         } else if (size === 0) size = end - pos;
         if (!Number.isSafeInteger(size) || size < header || pos + size > end) throw new Error("不正なMP4サイズ");
-        result.push({ pos, end: pos + size, size, header, type: String.fromCharCode(...file.subarray(pos + 4, pos + 8)) });
+        result.push({ pos, end: pos + size, size, header, type: String.fromCharCode(...bytes(pos + 4, pos + 8)) });
         pos += size;
       }
       return result;
     };
-    const top = atoms(0, file.byteLength);
+    const top = atoms(0, length);
     const moov = top.find(atom => atom.type === "moov");
-    if (!moov || moov.end !== file.byteLength) throw new Error("末尾moov以外は互換情報を追記しません");
+    if (!moov || moov.end !== length) throw new Error("末尾moov以外は互換情報を追記しません");
     const udta = atoms(moov.pos + moov.header, moov.end).find(atom => atom.type === "udta");
     if (!udta) throw new Error("udtaがありません");
     const children = atoms(udta.pos + udta.header, udta.end);
@@ -160,13 +175,137 @@ function MakeMP4MetadataParts(file, video) {
     }
     const updates = [[moov, customTags.length + xtra.length], [udta, customTags.length + xtra.length], [meta, customTags.length], [ilst, customTags.length]];
     if (updates.some(([atom, extra]) => atom.size + extra > 0xffffffff)) throw new Error("メタタグサイズの上限を超えています");
-    const parts = [file.subarray(0, ilst.end), customTags, file.subarray(ilst.end, udta.end), xtra, file.subarray(udta.end)];
+    const parts = [...slices(0, ilst.end), customTags, ...slices(ilst.end, udta.end), xtra, ...slices(udta.end)];
     for (const [atom, extra] of updates) view.setUint32(atom.pos, atom.size + extra);
     return parts;
   } catch (error) {
     console.warn("[nico downloader] Windows互換タグの追加を見送りました:", error.message);
-    return [file];
+    return typeof file.parts === "function" ? file.parts() : [file];
   }
+}
+
+// MP4出力ノードだけを固定長ブロックで保持する。拡張時に既存の出力をコピーしない。
+function CreateMP4OutputBuffer(core, filename) {
+  const fs = core.FS;
+  const originalOpen = fs.open;
+  const blockSize = 4 * 1024 * 1024;
+  const nodes = new Set();
+  let disposed = false;
+  fs.open = function (...args) {
+    const stream = Reflect.apply(originalOpen, this, args);
+    const node = stream.node;
+    if (stream.path !== "/" + filename || !stream.isWrite || node.ndlMP4Output || node.usedBytes) return stream;
+    const blocks = new Map();
+    const originalSetattr = node.node_ops.setattr;
+    let zeroBlock;
+    let allocations = 0;
+    const valid = (position, length = 0) => {
+      if (!Number.isSafeInteger(position) || !Number.isSafeInteger(length) || position < 0 || length < 0 || !Number.isSafeInteger(position + length)) throw new fs.ErrnoError(28);
+    };
+    const blockAt = (index) => {
+      if (!blocks.has(index)) { blocks.set(index, new Uint8Array(blockSize)); allocations++; }
+      return blocks.get(index);
+    };
+    const store = {
+      get size() { return node.usedBytes; },
+      read(buffer, offset, length, position) {
+        valid(position, length);
+        const count = Math.max(0, Math.min(length, node.usedBytes - position));
+        for (let copied = 0; copied < count;) {
+          const pos = position + copied, index = Math.floor(pos / blockSize), within = pos % blockSize;
+          const size = Math.min(count - copied, blockSize - within);
+          const block = blocks.get(index);
+          if (block) buffer.set(block.subarray(within, within + size), offset + copied);
+          else buffer.fill(0, offset + copied, offset + copied + size);
+          copied += size;
+        }
+        return count;
+      },
+      write(buffer, offset, length, position) {
+        valid(position, length);
+        if (!length) return 0;
+        for (let copied = 0; copied < length;) {
+          const pos = position + copied, within = pos % blockSize;
+          const size = Math.min(length - copied, blockSize - within);
+          const part = buffer.subarray ? buffer.subarray(offset + copied, offset + copied + size) : buffer.slice(offset + copied, offset + copied + size);
+          blockAt(Math.floor(pos / blockSize)).set(part, within);
+          copied += size;
+        }
+        node.usedBytes = Math.max(node.usedBytes, position + length);
+        node.timestamp = Date.now();
+        return length;
+      },
+      truncate(size) {
+        valid(size);
+        if (size < node.usedBytes) {
+          const firstUnused = Math.ceil(size / blockSize);
+          for (const index of blocks.keys()) if (index >= firstUnused) blocks.delete(index);
+          if (size % blockSize) blocks.get(Math.floor(size / blockSize))?.fill(0, size % blockSize);
+        }
+        node.usedBytes = size;
+      },
+      readRange(start, length) {
+        valid(start, length);
+        if (start + length > node.usedBytes) throw new Error("MP4出力の読み取り範囲が不正です");
+        const bytes = new Uint8Array(length);
+        store.read(bytes, 0, length, start);
+        return bytes;
+      },
+      writeRange(start, bytes) {
+        if (start + bytes.length > node.usedBytes) throw new Error("MP4出力の書き込み範囲が不正です");
+        store.write(bytes, 0, bytes.length, start);
+      },
+      parts(start = 0, end = node.usedBytes) {
+        valid(start, end - start);
+        if (end > node.usedBytes) throw new Error("MP4出力の保存範囲が不正です");
+        const parts = [];
+        for (let pos = start; pos < end;) {
+          const within = pos % blockSize, length = Math.min(end - pos, blockSize - within);
+          let block = blocks.get(Math.floor(pos / blockSize));
+          if (!block) { zeroBlock ??= new Uint8Array(blockSize); block = zeroBlock; }
+          parts.push(block.subarray(within, within + length));
+          pos += length;
+        }
+        return parts;
+      },
+      stats() { return { size: node.usedBytes, blocks: blocks.size, blockSize, allocatedBytes: blocks.size * blockSize, allocations, growthCopyBytes: 0 }; },
+      clear() { blocks.clear(); zeroBlock = undefined; node.usedBytes = 0; },
+    };
+    node.ndlMP4Output = store;
+    node.node_ops = {
+      ...node.node_ops,
+      setattr(target, attrs) {
+        const rest = { ...attrs };
+        if (attrs.size !== undefined) { store.truncate(attrs.size); delete rest.size; }
+        return originalSetattr(target, rest);
+      },
+    };
+    node.stream_ops = {
+      ...node.stream_ops,
+      read: (stream, buffer, offset, length, position) => store.read(buffer, offset, length, position),
+      write: (stream, buffer, offset, length, position) => store.write(buffer, offset, length, position),
+      allocate(stream, offset, length) {
+        valid(offset, length);
+        if (!length) return;
+        for (let index = Math.floor(offset / blockSize); index <= Math.floor((offset + length - 1) / blockSize); index++) blockAt(index);
+        node.usedBytes = Math.max(node.usedBytes, offset + length);
+      },
+      mmap() { throw new fs.ErrnoError(43); },
+      msync: (stream, buffer, offset, length) => { store.write(buffer, 0, length, offset); return 0; },
+    };
+    stream.stream_ops = node.stream_ops;
+    nodes.add(node);
+    return stream;
+  };
+  return {
+    dispose() {
+      if (disposed) return;
+      disposed = true;
+      fs.open = originalOpen;
+      for (const node of nodes) console.info("[nico downloader] MP4出力バッファ:", node.ndlMP4Output.stats());
+      nodes.clear();
+    },
+  };
 }
 
 function PrepareConvertedDownload(core, NicoDownloader, Nicovideo) {
@@ -177,11 +316,12 @@ function PrepareConvertedDownload(core, NicoDownloader, Nicovideo) {
   // このCoreのMEMFSを参照し、readFileによる出力全体のコピーを省く。
   // Blobは構築時に内容を取り込むため、直後に仮想ファイルを削除できる。
   const node = core.FS.lookupPath(outputName).node;
-  const file = node.contents.subarray(0, size);
+  const file = node.ndlMP4Output ?? node.contents.subarray(0, size);
   const format = NicoDownloader.CheckVideoFormat();
   const parts = format === "mp4" ? MakeMP4MetadataParts(file, Nicovideo) : [file];
   const blob = new Blob(parts, { type: FiletypeToMimetype(format) });
   core.FS.unlink(outputName);
+  node.ndlMP4Output?.clear();
   let link;
   let objectURL;
   try {
@@ -209,7 +349,11 @@ function RemoveFFmpegFiles(core, filenames) {
   for (const filename of filenames) {
     if (typeof filename !== "string" || !filename) continue;
     try {
-      if (core.FS.analyzePath(filename).exists) core.FS.unlink(filename);
+      if (core.FS.analyzePath(filename).exists) {
+        const node = core.FS.lookupPath(filename).node;
+        core.FS.unlink(filename);
+        node.ndlMP4Output?.clear();
+      }
     } catch (error) {
       console.warn("仮想ファイルの解放に失敗しました:", filename, error);
     }
@@ -566,19 +710,9 @@ async function DownEncoder(NicoDownloader, m3u8s, Nicovideo) {
 async function Downloadblob(url, NicoDownloader) {
   try {
     //TSの取得
-    let res = await fetch_retry(
-      url,
-      NicoDownloader,
-      { credentials: "include" },
-      100
-    );
-
-    let blob = await res.blob();
+    const blob = await fetch_retry(url, NicoDownloader, { credentials: "include" }, 100,
+      (response) => response.blob());
     DebugPrint("BLOBgetEnd:" + url);
-    
-    // レスポンスオブジェクトを明示的にクリア
-    res = null;
-    
     return blob;
   } catch (error) {
     console.error(`Blob取得エラー: ${url}`, error);
@@ -597,8 +731,9 @@ async function Downloadblob(url, NicoDownloader) {
 async function DownloadUint8Array(url, NicoDownloader) {
   try {
     // Response -> Blob -> ArrayBufferの中間Blobを作らず、取得したバッファを渡す。
-    const response = await fetch_retry(url, NicoDownloader, { credentials: "include" }, 100);
-    return new Uint8Array(await response.arrayBuffer());
+    const buffer = await fetch_retry(url, NicoDownloader, { credentials: "include" }, 100,
+      (response) => response.arrayBuffer());
+    return new Uint8Array(buffer);
   } catch (error) {
     console.error(`Uint8Array取得エラー: ${url}`, error);
     throw error;
@@ -655,32 +790,43 @@ function Option_setLoading(name) {
  * @param {NicoDownloaderClass} NicoDownloader
  * @param {Object} options fetchのオプション
  * @param {Number} n 最大試行回数（初回を含む）
- * @returns {Promise<Response>}
+ * @param {Function} readResponse 任意の本文読み取り処理。受信完了まで同じ試行内で待つ。
+ * @returns {Promise<*>}
  */
 ////////////////////////////////////////////////////////////////////////
-async function fetch_retry(url, NicoDownloader, options, n) {
+async function fetch_retry(url, NicoDownloader, options, n, readResponse) {
   if (!Number.isInteger(n) || n < 1) {
     throw new RangeError("最大試行回数は1以上の整数で指定してください。");
   }
   for (let attempt = 1; attempt <= n; attempt++) {
     let failure;
+    let receivingBody = false;
     try {
       DebugPrint("fetchurl: " + url);
       const response = await fetch(url, options);
-      if (response.status === 200) return response;
+      if (response.status === 200) {
+        if (!readResponse) return response;
+        receivingBody = true;
+        return await readResponse(response);
+      }
+      // エラー応答の本文は使わない。接続と受信バッファを保持し続けない。
+      try { await response.body?.cancel(); } catch {}
       failure = new Error(`HTTP ${response.status}: ${url}`);
       failure.status = response.status;
     } catch (error) {
       // 明示的な中断を通信失敗として再試行しない。
       if (error?.name === "AbortError" || options?.signal?.aborted) throw error;
+      // 本文受信の通信エラーだけを再試行し、メモリ不足などは繰り返さない。
+      if (receivingBody && error?.name !== "TypeError") throw error;
       failure = error;
     }
     NicoDownloader.DownloadFaultNumAdd();
+    const stage = receivingBody ? "本文受信失敗" : "通信失敗";
     if (attempt === n) {
-      console.warn(`[nico downloader] 通信失敗: 最大試行回数（${n}回）に達しました。`, url, failure);
+      console.warn(`[nico downloader] ${stage}: 最大試行回数（${n}回）に達しました。`, url, failure);
       throw failure;
     }
-    console.warn(`[nico downloader] 通信失敗: 1秒後に再試行します（${attempt}/${n}回）。`, url, failure);
+    console.warn(`[nico downloader] ${stage}: 1秒後に再試行します（${attempt}/${n}回）。`, url, failure);
     await sleep(1000);
   }
 }

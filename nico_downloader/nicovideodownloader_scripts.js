@@ -1,7 +1,61 @@
 //ダウンロード関数
 let failedDownloadId = null;
 
+// 同じURLでは取得を共有する。失敗時は明示的な保存操作で1回だけ再試行する。
+let videoMetadataState = { url: location.href, videoId: null, promise: null, retryRequested: false, retried: false };
+function ResetVideoMetadataForURL() {
+    if (videoMetadataState.url !== location.href) {
+        videoMetadataState = { url: location.href, videoId: null, promise: null, retryRequested: false, retried: false };
+    }
+}
+// 保存操作だけが再試行を許可する。定期確認や右クリック設定では許可しない。
+function RequestVideoMetadataRetry() {
+    ResetVideoMetadataForURL();
+    videoMetadataState.retryRequested = true;
+}
+async function LoadVideoMetadataOnce(video) {
+    ResetVideoMetadataForURL();
+    if (videoMetadataState.videoId !== video.video_sm) {
+        videoMetadataState = { url: location.href, videoId: video.video_sm, promise: null,
+            retryRequested: videoMetadataState.retryRequested, retried: false };
+    }
+    const state = videoMetadataState;
+    if (!state.promise) {
+        state.promise = (async () => {
+            try {
+                // URL変更後は、クラスが保持する前の成功結果より新規取得を優先する。
+                await video.SetAllFromVideoSm(video.video_sm, true);
+                return { ...video };
+            } catch (error) {
+                console.warn(state.retried
+                    ? "[nico downloader] 動画情報の再取得失敗（再試行は終了。ページ情報で続行します）:"
+                    : "[nico downloader] 動画情報の取得失敗（保存操作時に一度だけ再試行します）:", error);
+                return null;
+            }
+        })();
+    }
+    const pending = state.promise;
+    const metadata = await pending;
+    // 古いページの応答を、新しいページのボタンやファイル名に使わない。
+    if (state !== videoMetadataState || state.url !== location.href) return false;
+    // 別の待機処理が再試行を始めた場合も、同じ再試行の完了を待つ。
+    if (pending !== state.promise) return LoadVideoMetadataOnce(video);
+    if (!metadata && state.retryRequested && !state.retried) {
+        state.retried = true;
+        state.promise = null;
+        console.info("[nico downloader] 保存操作による動画情報の再取得（1回限り）:", video.video_sm);
+        return LoadVideoMetadataOnce(video);
+    }
+    if (metadata) Object.assign(video, metadata);
+    return true;
+}
+window.addEventListener("popstate", ResetVideoMetadataForURL);
+window.addEventListener("hashchange", ResetVideoMetadataForURL);
+window.navigation?.addEventListener("currententrychange", ResetVideoMetadataForURL);
+
+
 async function VideoDown() {
+    ResetVideoMetadataForURL();
     // 必要なクラスの初期化
     const NicoDownloader = new NicoDownloaderClass(); //NicoDownloaderクラスの初期化
     const Nicovideo = new NicovideoClass(); //NicovideoClassクラスの初期化
@@ -30,13 +84,11 @@ async function VideoDown() {
 
     if (failedDownloadId === Nicovideo.video_sm) return false;
 
-    // 動画情報APIが失敗しても、ページ上のタイトルを使ってボタンを表示できるようにする
-    try {
-        await Nicovideo.SetAllFromVideoSm(Nicovideo.video_sm);
-    } catch (error) {
-        DebugPrint("Video metadata could not be loaded: " + error);
-        console.warn("[nico downloader] 動画情報の取得失敗:", error);
-    }
+    // 保存済みなら動画情報APIを呼ばない。保存リンクの処理は上で先に行う。
+    if (NicoDownloader.VideoLoadedCheck(Nicovideo.video_sm)) return true;
+
+    // 定期確認で再要求せず、保存操作時の失敗再試行は1回まで。
+    if (!await LoadVideoMetadataOnce(Nicovideo)) return false;
     if (Nicovideo.video_title == "") {
         Nicovideo.video_title = Nicovideo.GetPageTitle() || Nicovideo.video_sm;
         DebugPrint("Using fallback video title: " + Nicovideo.video_title);
@@ -302,7 +354,7 @@ function StartInitialButtonObserver() {
         }
         // タイトル取得前も保存形式を反映し、通常処理の表示名はそのまま引き継ぐ。
         const initialName = `${videoId}.${settings.downFile_setting}`;
-        downloader.SaveButtonMake(wrapper.dataset.ndlInitialName || initialName);
+        downloader.SaveButtonMake((wrapper.dataset.ndlInitialName || initialName).replace(/\.(mp4|aac)$/i, "." + settings.downFile_setting));
     };
     const schedule = () => {
         if (!observing || frame !== null) return;
@@ -623,3 +675,116 @@ class DomandPlaylistCapture {
 }
 
 const domandPlaylistCapture = new DomandPlaylistCapture();
+
+// 保存ボタン専用の右クリック設定。contextMenus権限は使わない。
+(() => {
+    let menu = null, generation = 0, saving = false;
+    const close = () => {
+        if (saving) return;
+        generation++;
+        menu?.remove();
+        menu = null;
+    };
+    const busy = () => {
+        const button = document.getElementById(VideoData.Video_DLlink.a)?.querySelector('button');
+        return NicovideoDownloader__NowDownloading || !!button?.dataset.ndlStartPending;
+    };
+    document.addEventListener('contextmenu', (event) => {
+        const wrapper = document.getElementById(VideoData.Video_DLlink.p);
+        if (!wrapper?.contains(event.target)) return;
+        event.preventDefault();
+        event.stopPropagation();
+        if (saving) return;
+        close();
+        const revision = generation, route = location.href;
+        menu = document.createElement('div');
+        menu.setAttribute('role', 'dialog');
+        menu.setAttribute('aria-label', '保存のクイック設定');
+        menu.style.cssText = 'position:fixed;z-index:2147483647;box-sizing:border-box;width:280px;max-width:calc(100vw - 16px);max-height:calc(100vh - 16px);overflow:auto;padding:16px;border:1px solid #666;border-radius:12px;background:#252525;color:#fff;font:14px/1.6 sans-serif;box-shadow:0 6px 24px #0008';
+        const position = () => {
+            const rect = menu.getBoundingClientRect();
+            menu.style.left = Math.max(8, Math.min(event.clientX, innerWidth - rect.width - 8)) + 'px';
+            menu.style.top = Math.max(8, Math.min(event.clientY, innerHeight - rect.height - 8)) + 'px';
+        };
+        const heading = document.createElement('strong');
+        heading.textContent = '保存のクイック設定';
+        menu.append(heading);
+        const status = document.createElement('p');
+        status.style.cssText = 'margin:10px 0 0;color:#ccc;font-size:12px';
+        status.setAttribute('role', 'status');
+        status.textContent = '設定を読み込み中…';
+        menu.append(status);
+        document.documentElement.append(menu);
+        position();
+        const panel = menu;
+        chrome.storage.local.get({ downFile_setting: 'mp4', save_comments_json: '0' }, (values) => {
+            if (revision !== generation || menu !== panel) return;
+            if (chrome.runtime.lastError) {
+                status.textContent = '設定を読み込めませんでした。右クリックで開き直してください。';
+                return;
+            }
+            const fields = document.createElement('fieldset');
+            fields.style.cssText = 'border:0;padding:8px 0 0;margin:0';
+            fields.disabled = !!busy();
+            const controls = [];
+            for (const [label, key, value, type] of [
+                ['MP4（動画）', 'downFile_setting', 'mp4', 'radio'],
+                ['AAC（音声のみ）', 'downFile_setting', 'aac', 'radio'],
+                ['コメントJSONも保存', 'save_comments_json', '1', 'checkbox'],
+            ]) {
+                const row = document.createElement('label');
+                row.style.cssText = 'display:flex;align-items:center;gap:10px;padding:7px 0;cursor:pointer';
+                const input = document.createElement('input');
+                input.type = type;
+                input.name = 'ndl-quick-' + key;
+                input.value = value;
+                input.checked = values[key] === value;
+                controls.push({ input, key, value });
+                row.append(input, document.createTextNode(label));
+                fields.append(row);
+                input.addEventListener('change', () => {
+                    if (saving || busy() || location.href !== route) {
+                        for (const control of controls) control.input.checked = values[control.key] === control.value;
+                        status.textContent = '処理中・ページ移動後は変更できません。開き直してください。';
+                        return;
+                    }
+                    const next = type === 'checkbox' ? input.checked ? '1' : '0' : value;
+                    saving = true;
+                    fields.disabled = true;
+                    chrome.storage.local.set({ [key]: next }, () => {
+                        saving = false;
+                        if (chrome.runtime.lastError) {
+                            for (const control of controls) control.input.checked = values[control.key] === control.value;
+                            status.textContent = '保存に失敗しました。もう一度お試しください。';
+                        } else {
+                            values[key] = next;
+                            status.textContent = key === 'save_comments_json' && next === '1'
+                                ? '保存しました。コメント未受信の場合はページを再読み込みしてください。'
+                                : '設定を保存しました。次の保存に反映されます。';
+                            const button = wrapper.querySelector('button');
+                            if (key === 'downFile_setting' && wrapper.isConnected && location.href === route &&
+                                !busy() && button?.dataset.ndlStatus !== 'completed') {
+                                const name = wrapper.dataset.ndlInitialName;
+                                if (name) new NicoDownloaderClass().SaveButtonMake(name.replace(/\.(mp4|aac)$/i, '.' + next));
+                            }
+                        }
+                        fields.disabled = !!busy() || location.href !== route;
+                    });
+                });
+            }
+            panel.insertBefore(fields, status);
+            status.textContent = fields.disabled ? '保存処理中は変更できません。' : '変更は自動保存されます。コメント未受信なら、有効後に再読み込みしてください。';
+            position();
+            controls[0].input.focus({ preventScroll: true });
+        });
+    }, true);
+    document.addEventListener('pointerdown', (event) => {
+        if (menu && !menu.contains(event.target)) close();
+    }, true);
+    document.addEventListener('keydown', (event) => {
+        if (menu && event.key === 'Escape') { event.preventDefault(); close(); }
+    }, true);
+    window.addEventListener('pagehide', close);
+    window.addEventListener('popstate', close);
+    window.navigation?.addEventListener('currententrychange', close);
+})();

@@ -260,3 +260,38 @@ function BuildVideoFilename(parts, video, extension) {
         },
     };
 })();
+
+// MAIN worldの受信監視とは必要項目だけを共有し、通常動画の現在URLだけ保持する。
+(() => {
+    if (location.origin !== 'https://www.nicovideo.jp' || !globalThis.chrome?.runtime?.id) return;
+    const channel = 'nico-downloader-watch-metadata-v1', client = crypto.randomUUID();
+    let cached = null;
+    const subscribe = () => window.postMessage({ channel, client, type: 'subscribe' }, location.origin);
+    const route = () => location.pathname.match(/^\/watch\/(sm[0-9]+)\/?$/)?.[1] || '';
+    const validText = value => typeof value === 'string' && value.length <= 10000;
+    window.addEventListener('message', event => {
+        const data = event.data;
+        if (event.source !== window || event.origin !== location.origin || data?.channel !== channel) return;
+        if (data.type === 'ready') { subscribe(); return; }
+        if (data.type !== 'metadata' || data.client !== client || data.href !== location.href ||
+            !route() || data.videoId !== route() || !validText(data.owner) || !validText(data.series) ||
+            !Number.isSafeInteger(data.order) || data.order < 1) return;
+        if (cached?.href === data.href && cached.order > data.order) return;
+        cached = { videoId: data.videoId, href: data.href, order: data.order, owner: data.owner, series: data.series };
+        console.info('[nico downloader] ページの動画情報取得成功（lazy）:', data.videoId);
+    });
+    const reset = () => {
+        if (cached && cached.href !== location.href) cached = null;
+    };
+    window.addEventListener('popstate', reset);
+    window.addEventListener('hashchange', reset);
+    window.navigation?.addEventListener('currententrychange', reset);
+    globalThis.NicoWatchMetadata = {
+        get(videoId) {
+            reset();
+            return cached?.href === location.href && cached.videoId === videoId && route() === videoId
+                ? { owner: cached.owner, series: cached.series } : null;
+        },
+    };
+    subscribe();
+})();

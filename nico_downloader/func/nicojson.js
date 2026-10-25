@@ -1,4 +1,92 @@
 (function () {
+// ページが受信したlazy動画情報から、必要な投稿者名・シリーズ名だけを渡す。
+(() => {
+    if (globalThis.chrome?.runtime?.id) return;
+    const channel = 'nico-downloader-watch-metadata-v1';
+    let client = '', cached = null, href = location.href, generation = 0, order = 0;
+    const route = () => location.pathname.match(/^\/watch\/(sm[0-9]+)\/?$/)?.[1] || '';
+    const sync = () => {
+        if (href !== location.href) { href = location.href; cached = null; generation++; }
+    };
+    const publish = () => {
+        sync();
+        if (client && cached && cached.href === location.href && cached.videoId === route()) {
+            window.postMessage({ channel, client, type: 'metadata', ...cached }, location.origin);
+        }
+    };
+    window.addEventListener('message', event => {
+        const data = event.data;
+        if (event.source !== window || event.origin !== location.origin || data?.channel !== channel ||
+            data.type !== 'subscribe' || typeof data.client !== 'string' || data.client.length > 100) return;
+        client = data.client;
+        publish();
+    });
+    for (const name of ['popstate', 'hashchange']) window.addEventListener(name, sync);
+    window.navigation?.addEventListener('currententrychange', sync);
+    const context = (url, method) => {
+        sync();
+        try {
+            const parsed = new URL(url, location.href);
+            const videoId = parsed.pathname.match(/^\/v4\/watch\/lazy\/(sm[0-9]+)\/?$/)?.[1];
+            return String(method).toUpperCase() === 'POST' && parsed.origin === 'https://nvapi.nicovideo.jp' &&
+                videoId && videoId === route() ? { videoId, href, generation, order: ++order } : null;
+        } catch { return null; }
+    };
+    const active = ctx => { sync(); return ctx && ctx.generation === generation && ctx.href === location.href && ctx.videoId === route(); };
+    const textValue = value => typeof value === 'string' && value.length <= 10000 ? value : '';
+    async function receive(ctx, read, status) {
+        if (!active(ctx) || status !== 200) return;
+        try {
+            const json = JSON.parse(await read());
+            if (!active(ctx) || json?.meta?.status !== 200 || !json.data ||
+                (cached && cached.order > ctx.order)) return;
+            // series.video.prev/nextは別動画なので転送しない。Cookie・本文・広告情報も転送しない。
+            const owner = textValue(json.data.owner?.nickname);
+            const series = textValue(json.data.series?.title);
+            if (!owner && !series) return;
+            cached = { videoId: ctx.videoId, href: ctx.href, order: ctx.order, owner, series };
+            publish();
+        } catch { /* ページ側の応答処理を妨げない。 */ }
+    }
+    const originalFetch = window.fetch;
+    window.fetch = function(input, init) {
+        let ctx;
+        try {
+            const isRequest = typeof Request !== 'undefined' && input instanceof Request;
+            ctx = context(isRequest ? input.url : input, init?.method ?? (isRequest ? input.method : 'GET'));
+        } catch {}
+        const result = Reflect.apply(originalFetch, this, arguments);
+        if (ctx) result.then(response => {
+            if (!active(ctx) || response.status !== 200) return;
+            const copy = response.clone();
+            return receive(ctx, () => copy.text(), response.status);
+        }).catch(() => {});
+        return result;
+    };
+    const requests = new WeakMap(), originalOpen = XMLHttpRequest.prototype.open, originalSend = XMLHttpRequest.prototype.send;
+    XMLHttpRequest.prototype.open = function(method, url) {
+        const result = Reflect.apply(originalOpen, this, arguments);
+        requests.set(this, { method, url });
+        return result;
+    };
+    XMLHttpRequest.prototype.send = function() {
+        const request = requests.get(this);
+        const ctx = request && context(request.url, request.method);
+        if (ctx) {
+            const finish = () => {
+                this.removeEventListener('loadend', finish);
+                if (requests.get(this) !== request || !active(ctx)) return;
+                receive(ctx, () => this.responseType === 'json' ? JSON.stringify(this.response) : this.responseText, this.status);
+            };
+            this.addEventListener('loadend', finish);
+            try { return Reflect.apply(originalSend, this, arguments); }
+            catch (error) { this.removeEventListener('loadend', finish); throw error; }
+        }
+        return Reflect.apply(originalSend, this, arguments);
+    };
+    window.postMessage({ channel, type: 'ready' }, location.origin);
+})();
+
 // ページ側では通信の複製だけを担当し、保存と設定の判断は拡張側で行う。
 (() => {
     if (globalThis.chrome?.runtime?.id) return;
@@ -150,7 +238,7 @@ class NicovideoClass {
 
 
     //jsonをダウンロード後jsonをセットし、その後各変数をセット
-    async SetAllFromVideoSm(video_sm) {
+    async SetAllFromVideoSm(video_sm, refresh = false) {
         this.video_sm = video_sm;
         // ショートは表示中のカードからタイトルを取得し、既存の保存名設定に渡す。
         if (/^ss[0-9]+$/.test(video_sm)) {
@@ -158,7 +246,7 @@ class NicovideoClass {
             return;
         }
 
-        if (video_sm == Nicovideo______Ndl______DataLoadedSMID) {
+        if (!refresh && video_sm == Nicovideo______Ndl______DataLoadedSMID) {
             return new Promise((resolve, reject) => {
                 DebugPrint("NicovideoClass: SetAllFromVideoSm: JSONLoaded");
                 this.SetJson(Nicovideo______Ndl______DataLoadedJSON);
@@ -180,15 +268,21 @@ class NicovideoClass {
             });
     }
 
-    //jsonをダウンロード
+    // ページが取得済みの情報だけを使う。旧responseType=jsonの追加GETは行わない。
     async DownloadJson(video_sm = this.video_sm) {
         if (video_sm == '') return false;
-        const url = this.NicoVideoWatchURL + video_sm + '?responseType=json';
-        const response = await fetch(url);
-        if (!response.ok) throw new Error("動画情報の取得に失敗しました: HTTP " + response.status);
-        const json = await response.json();
-        if (Number(json?.meta?.status) >= 400) throw new Error("動画情報APIエラー: " + json.meta.status);
-        return json;
+        for (const element of document.querySelectorAll('meta[name="server-response"], #js-initial-watch-data[data-api-data]')) {
+            try {
+                const json = JSON.parse(element.getAttribute("content") ?? element.getAttribute("data-api-data"));
+                const data = this.GetWatchData(json);
+                if (Number(json?.meta?.status) >= 400) continue;
+                if ((data.video?.id ?? data.client?.watchId) === video_sm) return json;
+            } catch { /* 同じ動画IDと確認できる埋め込み情報だけを使う。 */ }
+        }
+        const lazy = globalThis.NicoWatchMetadata?.get(video_sm);
+        if (lazy) return { meta: { status: 200 }, data: { video: { id: video_sm },
+            owner: { nickname: lazy.owner }, series: { title: lazy.series } } };
+        throw new Error("ページの動画情報はまだ受信・読み込みされていません。");
     }
     //jsonをセット
     SetJson(json) {
@@ -361,6 +455,8 @@ class NicovideoClass {
                 if (empty(this[key]) && !empty(safe)) this[key] = safe;
             }
         };
+        const lazy = globalThis.NicoWatchMetadata?.get(this.video_sm);
+        if (lazy) apply({ video_owner: lazy.owner, video_series: lazy.series });
         for (const element of document.querySelectorAll('meta[name="server-response"], #js-initial-watch-data[data-api-data]')) {
             try {
                 const json = JSON.parse(element.getAttribute("content") ?? element.getAttribute("data-api-data"));

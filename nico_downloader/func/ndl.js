@@ -717,6 +717,7 @@ class NicoDownloaderClass {
                         event.stopImmediatePropagation();
                         return;
                     }
+                    if (typeof RequestVideoMetadataRetry === "function") RequestVideoMetadataRetry();
                     const token = String(performance.now());
                     const videoId = wrapper?.dataset.ndlVideoId;
                     button.dataset.ndlStartPending = token;
