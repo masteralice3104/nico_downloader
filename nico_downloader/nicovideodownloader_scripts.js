@@ -146,6 +146,9 @@ async function MovieDownload_domand(Nicovideo, NicoDownloader) {
     NicoDownloader.VideoDownloadingSet();
     try {
         NicoDownloader.ButtonTextWrite("処理中");
+        // 保存開始時のファイル名で形式を固定し、取得対象と変換形式を揃える。
+        NicoDownloader.SetVideoFormat(Nicovideo.video_name);
+        const audioOnly = NicoDownloader.CheckVideoFormat() === "aac";
         //Firstm3u8URLを取得
         const Firstm3u8URL = NicoDownloader.MasterURLGet();
 
@@ -155,23 +158,29 @@ async function MovieDownload_domand(Nicovideo, NicoDownloader) {
         //Firstm3u8URLの取得に成功した場合
         await NicoDownloader.URLToM3u8Set("First", Firstm3u8URL); //Firstm3u8URLをセット
 
-        //Firstm3u8URLからaudio_m3u8_URLとvideo_m3u8_URLを取得
-        if (NicoDownloader.M3u8ToAudioAndVideoUrlSet() == false) throw new Error("映像・音声のURLを取得できませんでした。");
+        // 保存形式に必要な音声・映像のURLを取得
+        if (NicoDownloader.M3u8ToAudioAndVideoUrlSet() == false) throw new Error(audioOnly ? "音声のURLを取得できませんでした。" : "映像・音声のURLを取得できませんでした。");
 
-        //audio_m3u8_URLとvideo_m3u8_URLを取得できた場合
-        //audio_m3u8_URLとvideo_m3u8_URLを元にaudio_m3u8_bodyとvideo_m3u8_bodyを取得
+        // AACでは映像プレイリストも映像断片も取得しない。
         await NicoDownloader.URLToM3u8Set("Audio", NicoDownloader.M3u8.AudioM3u8URL);
-        await NicoDownloader.URLToM3u8Set("Video", NicoDownloader.M3u8.VideoM3u8URL);
-
-        // m3u8sを取得
-        const m3u8s = [
-            NicoDownloader.M3u8Class.ReplaceURLToM3u8s(NicoDownloader.M3u8.AudioBody),
-            NicoDownloader.M3u8Class.ReplaceURLToM3u8s(NicoDownloader.M3u8.VideoBody),
-            NicoDownloader.M3u8Class.ReplaceURLToM3u8s(NicoDownloader.M3u8.FirstBody),
-            NicoDownloader.M3u8Class.MakeTSFilename(NicoDownloader.M3u8.AudioM3u8URL),
-            NicoDownloader.M3u8Class.MakeTSFilename(NicoDownloader.M3u8.VideoM3u8URL),
-            NicoDownloader.M3u8Class.MakeTSFilename(Firstm3u8URL),
-        ];
+        let m3u8s;
+        if (audioOnly) {
+            // 最後のファイル名をCoreへの入力にする既存の配列形式を維持する。
+            m3u8s = [
+                NicoDownloader.M3u8Class.ReplaceURLToM3u8s(NicoDownloader.M3u8.AudioBody),
+                NicoDownloader.M3u8Class.MakeTSFilename(NicoDownloader.M3u8.AudioM3u8URL),
+            ];
+        } else {
+            await NicoDownloader.URLToM3u8Set("Video", NicoDownloader.M3u8.VideoM3u8URL);
+            m3u8s = [
+                NicoDownloader.M3u8Class.ReplaceURLToM3u8s(NicoDownloader.M3u8.AudioBody),
+                NicoDownloader.M3u8Class.ReplaceURLToM3u8s(NicoDownloader.M3u8.VideoBody),
+                NicoDownloader.M3u8Class.ReplaceURLToM3u8s(NicoDownloader.M3u8.FirstBody),
+                NicoDownloader.M3u8Class.MakeTSFilename(NicoDownloader.M3u8.AudioM3u8URL),
+                NicoDownloader.M3u8Class.MakeTSFilename(NicoDownloader.M3u8.VideoM3u8URL),
+                NicoDownloader.M3u8Class.MakeTSFilename(Firstm3u8URL),
+            ];
+        }
 
         // TSファイルのURLを取得
         NicoDownloader.TSURLs =

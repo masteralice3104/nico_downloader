@@ -992,13 +992,14 @@ class NicoDownloaderClass {
     ////////////////////////////////////////////////////////////////////////
     M3u8ToAudioAndVideoUrlSet() {
 
-        const audio_m3u8_URL = this.M3u8.FirstBody_json["EXT-X-MEDIA"][0]['URI'];
-        const video_m3u8_URL = this.M3u8.FirstBody_json["EXT-X-STREAM-INF"][0]['URI'];
+        const audio_m3u8_URL = this.M3u8.FirstBody_json["EXT-X-MEDIA"]?.[0]?.URI;
+        const audioOnly = this.CheckVideoFormat() === "aac";
+        const video_m3u8_URL = audioOnly ? null : this.M3u8.FirstBody_json["EXT-X-STREAM-INF"]?.[0]?.URI;
 
-        if (audio_m3u8_URL == null || video_m3u8_URL == null) return false;
+        if (!audio_m3u8_URL || (!audioOnly && !video_m3u8_URL)) return false;
 
         this.SetM3u8("AudioM3u8URL", audio_m3u8_URL);
-        this.SetM3u8("VideoM3u8URL", video_m3u8_URL);
+        if (!audioOnly) this.SetM3u8("VideoM3u8URL", video_m3u8_URL);
 
         return true;
     }
@@ -1158,7 +1159,8 @@ class NicovideoM3u8 {
      */
     ////////////////////////////////////////////////////////////////
     MakeURLListToTSURLs(NicoDownloader) {
-        return this._MakeURLList(NicoDownloader.M3u8.AudioBody_json, NicoDownloader.M3u8.VideoBody_json);
+        return this._MakeURLList(NicoDownloader.M3u8.AudioBody_json,
+            NicoDownloader.CheckVideoFormat() === "aac" ? null : NicoDownloader.M3u8.VideoBody_json);
     }
 
     ////////////////////////////////////////////////////////////////
@@ -1177,6 +1179,7 @@ class NicovideoM3u8 {
         for (let i = 0; i < audio_m3u8_body_json['EXTINF'].length; i++) {
             TSURLs.push(audio_m3u8_body_json['EXTINF'][i]['URI']);
         }
+        if (!video_m3u8_body_json) return TSURLs;
         TSURLs.push(video_m3u8_body_json['EXT-X-MAP'][0]['URI']);
         TSURLs.push(video_m3u8_body_json['EXT-X-KEY'][0]['URI']);
         for (let i = 0; i < video_m3u8_body_json['EXTINF'].length; i++) {

@@ -246,8 +246,8 @@ async function DownEncoder(NicoDownloader, m3u8s, Nicovideo) {
 
     //Transcodeする
     // 全てのダウンロードが完了後に変換処理を開始
-    //間違ってURLを読みに行くのでm3u8を3つ書き換える
-    //m3u8末尾の3個
+    // URLを読みに行かないよう、保存形式に必要なm3u8を書き込む。
+    // 配列の前半が本文、後半がファイル名。AACでは音声の1組だけ。
     const m3u8s_num = m3u8s.length / 2;
     for (let i = 0; i < m3u8s_num; i++) {
       DebugPrint(
@@ -337,8 +337,8 @@ async function DownloadUint8Array(url, NicoDownloader) {
 ////////////////////////////////////////////////////////////////////////
 async function Transcode(Core, m3u8name, NicoDownloader, Nicovideo) {
   NicoDownloader.ButtonTextWrite("変換中");
-  let mode = await Option_setLoading("downFile_setting") || "mp4"; // モードを取得
-  if (mode == 0) mode = "mp4"; // モードが取得できなかった場合はデフォルトのmp4にする
+  // 処理中に設定が変わっても、取得済みの入力と保存名に対応する形式を使う。
+  const mode = NicoDownloader.CheckVideoFormat();
 
   console.log(`Current mode: ${mode}`); // モードを確認するログ
   return runFFmpeg_m3u8(Core, m3u8name, NicoDownloader, Nicovideo, mode);
