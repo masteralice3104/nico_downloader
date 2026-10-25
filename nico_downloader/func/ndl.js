@@ -400,15 +400,23 @@ class NicoDownloaderClass {
         const caption = button?.querySelector("b");
         const icon = button?.querySelector("svg");
         if (caption && icon) {
-            caption.textContent = label;
-            button.setAttribute("aria-busy", String(busy));
-            button.disabled = busy;
+            const completed = label.trim() === this.LangText("保存完了").trim();
+            caption.textContent = completed ? "保存終了" : label;
+            button.setAttribute("aria-busy", String(busy && !completed));
+            button.disabled = busy || completed;
+            if (completed) {
+                button.title = "保存終了";
+                button.setAttribute("aria-label", "保存終了");
+                button.style.setProperty("color", "#999");
+                button.style.setProperty("fill", "currentColor");
+                button.style.setProperty("background-color", "#333");
+            }
             if (!button.dataset.ndlIdleSvg) button.dataset.ndlIdleSvg = icon.outerHTML;
-            const status = busy ? "busy" : "idle";
+            const status = completed ? "completed" : busy ? "busy" : "idle";
             // 文字の進捗更新ではSVGを入れ替えず、回転を継続する。
             if (button.dataset.ndlStatus !== status) {
                 button.dataset.ndlStatus = status;
-                icon.outerHTML = busy ? this.ButtonStatusIcon("busy").replace('style="', 'style="display:block;flex-shrink:0;width:24px;height:24px;') : button.dataset.ndlIdleSvg;
+                icon.outerHTML = busy || completed ? this.ButtonStatusIcon(status).replace('style="', 'style="display:block;flex-shrink:0;width:24px;height:24px;') : button.dataset.ndlIdleSvg;
             }
             return;
         }
