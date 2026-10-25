@@ -45,10 +45,11 @@
         <h2 id="help-heading">設定の前に、使い方を確認してください</h2>
         <p class="guide-intro" id="guide-lock-hint">以下の手順を確認してチェックを入れるまで、設定の変更・保存はできません。</p>
         <ol><li><strong>「初期設定モード」をオフにして、設定を保存します。</strong><br>オンのままではダウンロードできません。</li><li>動画ページの保存ボタン、またはショートのダウンロードアイコンを押します。</li><li>ダウンロードと変換が終わるまで待ちます。</li><li>Chromeの設定に応じて、自動保存または保存先の選択画面が表示されます。</li></ol>
-        <details id="system_message_open"><summary id="system_message_open_button">取得できないときは</summary><p>通常動画では、プレイヤーの「設定」から「システムメッセージを表示」を開くと取得できる場合があります。</p></details>
+        <p class="support">保存ボタンの右クリックでもMP4／AACとコメント保存を切り替えられます。処理中は回転アイコン、保存要求後はチェックアイコンになります。実際の保存結果はChromeのダウンロード一覧で確認してください。</p>
+        <details id="system_message_open"><summary id="system_message_open_button">取得できないときは</summary><p>ショートで「Reloadする」が表示されたら、押してページを再読み込みしてください。通常動画では、プレイヤーの「設定」から「システムメッセージを表示」を開くと取得できる場合があります。コメントが未受信の場合は、保存設定を有効にしてから動画ページを再読み込みしてください。</p></details>
         <label class="guide-confirm" for="guide_acknowledged"><input type="checkbox" id="guide_acknowledged" aria-describedby="guide-lock-hint" disabled><span>使い方を確認しました。設定に進みます。</span></label>
       </section>
-      <h1>設定</h1><p class="intro">保存形式やファイル名、動画ページの表示を変更できます。</p>
+      <h1>設定</h1><p class="intro">保存形式・名前・コメントJSONを設定します。5.1.0.0の詳しい操作と対処方法は、下部のWikiで確認できます。</p>
       <form id="form" novalidate>
         <fieldset id="settings_fields" disabled aria-label="ダウンロード設定">
           <div class="settings-panel">
@@ -58,8 +59,8 @@
                 <div class="field"><label for="downFile_setting">保存形式</label><select name="downFile_setting" id="downFile_setting"><option value="mp4" selected>MP4（動画）</option><option value="aac">AAC（音声のみ）</option></select></div>
                 <div class="field"><label for="video_downloading">基本のファイル名</label><select name="video_downloading" id="video_downloading"><option value="0" selected>動画番号</option><option value="1">動画タイトル</option><option value="2">動画番号_動画タイトル</option><option value="3">動画タイトル_動画番号</option></select></div>
               </div>
-              <p class="support">ショートは常に「基本のファイル名」で保存します。</p>
-              <div class="field spacer"><label for="video_filename_mode">通常動画のファイル名</label><select id="video_filename_mode" name="video_filename_mode" aria-describedby="filename-mode-help"><option value="default" selected>基本設定を使う</option><option value="custom">カスタム</option></select><p class="support" id="filename-mode-help">この設定は通常動画だけに反映されます。</p></div>
+              <p class="support">ショートは常に「基本のファイル名」で保存します。使用できない文字や長すぎる名前は自動で調整します。</p>
+              <div class="field spacer"><label for="video_filename_mode">通常動画のファイル名</label><select id="video_filename_mode" name="video_filename_mode" aria-describedby="filename-mode-help"><option value="default" selected>基本設定を使う</option><option value="custom">カスタム</option></select><p class="support" id="filename-mode-help">この設定は通常動画だけに反映されます。処理開始時の形式と名前の構成は、途中で設定を変更しても維持されます。</p></div>
               <div id="filename_custom_fields" class="spacer" hidden><div class="fields filename-parts"><div class="field"><label for="video_filename_part_1">1番目</label><select id="video_filename_part_1" name="video_filename_part_1"><option value="uploader" selected>投稿者名</option><option value="title">動画タイトル</option><option value="id">動画番号</option><option value="none">なし</option></select></div><div class="field"><label for="video_filename_part_2">2番目</label><select id="video_filename_part_2" name="video_filename_part_2"><option value="uploader">投稿者名</option><option value="title" selected>動画タイトル</option><option value="id">動画番号</option><option value="none">なし</option></select></div><div class="field"><label for="video_filename_part_3">3番目</label><select id="video_filename_part_3" name="video_filename_part_3"><option value="uploader">投稿者名</option><option value="title">動画タイトル</option><option value="id" selected>動画番号</option><option value="none">なし</option></select></div></div><p class="support">選んだ順に「_」でつなぎます。「なし」や取得できない項目は省略し、すべて空の場合は動画番号を使います。</p></div>
               <div class="preview"><span class="preview-label">通常動画のプレビュー</span><output id="filename_preview" for="video_downloading downFile_setting video_filename_mode video_filename_part_1 video_filename_part_2 video_filename_part_3">sm12345678.mp4</output><span class="preview-label shorts-preview-label">ショートのプレビュー</span><output id="shorts_filename_preview" for="video_downloading downFile_setting">ss12345678.mp4</output></div>
               <div class="row spacer"><div><label class="row-label" for="save_comments_json">コメントJSONも保存（通常動画・ショート）</label><p class="support" id="comments-help">初期状態はオフです。有効にして設定を保存し、動画ページを再読み込みしてください。動画の保存ボタン、またはショートのダウンロードアイコンを押すと、ページが受信したコメントJSONを同じ名前の.jsonとして一緒に保存します。Chromeから複数ファイルのダウンロード許可を求められる場合があります。</p></div><label class="switch"><input id="save_comments_json" name="save_comments_json" type="checkbox" role="switch" data-on="1" data-off="0" aria-describedby="comments-help"><span class="switch-track" aria-hidden="true"></span></label></div>
