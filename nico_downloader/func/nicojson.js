@@ -1,4 +1,76 @@
 (function () {
+// 動画番号を含むページ側POST応答のcontentUrlを、番号と組にして保持する。
+(() => {
+    if (globalThis.chrome?.runtime?.id) return;
+    const channel = 'nico-downloader-playlist-source-v1', records = new Map();
+    let client = '', order = 0;
+    const validURL = value => {
+        try { const u = new URL(value); return u.origin === 'https://delivery.domand.nicovideo.jp' && !u.username && !u.password && /^\/hlsbid\/[^/]+\/playlists\/.+/.test(u.pathname); }
+        catch { return false; }
+    };
+    const publish = entry => { if (client) window.postMessage({ channel, client, type: 'source', ...entry }, location.origin); };
+    window.addEventListener('message', event => {
+        const d = event.data;
+        if (event.source !== window || event.origin !== location.origin || d?.channel !== channel || d.type !== 'subscribe' || typeof d.client !== 'string' || d.client.length > 100) return;
+        client = d.client;
+        for (const entry of records.values()) publish(entry);
+    });
+    const identify = (url, method) => {
+        try {
+            const u = new URL(url, location.href);
+            return String(method).toUpperCase() === 'POST' && u.origin === 'https://nvapi.nicovideo.jp'
+                ? u.pathname.match(/^\/v[0-9]+\/(?:watch|shorts)\/((?:sm|ss)[0-9]+)(?:\/|$)/)?.[1] : null;
+        } catch { return null; }
+    };
+    async function receive(videoId, requestOrder, read, status) {
+        if (status !== 200) return;
+        try {
+            const json = JSON.parse(await read());
+            if (json?.meta?.status !== 200 || !validURL(json?.data?.contentUrl)) return;
+            if ((records.get(videoId)?.order || 0) > requestOrder) return;
+            const entry = { videoId, url: json.data.contentUrl, receivedAt: Date.now(), order: requestOrder };
+            records.delete(videoId); records.set(videoId, entry);
+            while (records.size > 8) records.delete(records.keys().next().value);
+            publish(entry);
+        } catch { /* ページ本来の処理に影響させない。 */ }
+    }
+    const fetch = window.fetch;
+    window.fetch = function(input, init) {
+        let videoId;
+        try {
+            const req = typeof Request !== 'undefined' && input instanceof Request;
+            videoId = identify(req ? input.url : input, init?.method ?? (req ? input.method : 'GET'));
+        } catch {}
+        const requestOrder = videoId ? ++order : 0;
+        const result = Reflect.apply(fetch, this, arguments);
+        if (videoId) result.then(response => {
+            if (response.status !== 200) return;
+            const copy = response.clone(); return receive(videoId, requestOrder, () => copy.text(), response.status);
+        }).catch(() => {});
+        return result;
+    };
+    const requests = new WeakMap(), open = XMLHttpRequest.prototype.open, send = XMLHttpRequest.prototype.send;
+    XMLHttpRequest.prototype.open = function(method, url) {
+        const result = Reflect.apply(open, this, arguments); requests.set(this, { method, url }); return result;
+    };
+    XMLHttpRequest.prototype.send = function() {
+        const request = requests.get(this), videoId = request && identify(request.url, request.method);
+        if (videoId) {
+            const requestOrder = ++order;
+            const finish = () => {
+                this.removeEventListener('loadend', finish);
+                if (requests.get(this) !== request) return;
+                receive(videoId, requestOrder, () => this.responseType === 'json' ? JSON.stringify(this.response) : this.responseText, this.status);
+            };
+            this.addEventListener('loadend', finish);
+            try { return Reflect.apply(send, this, arguments); }
+            catch (error) { this.removeEventListener('loadend', finish); throw error; }
+        }
+        return Reflect.apply(send, this, arguments);
+    };
+    window.postMessage({ channel, type: 'ready' }, location.origin);
+})();
+
 // ページが受信したlazy動画情報から、必要な投稿者名・シリーズ名だけを渡す。
 (() => {
     if (globalThis.chrome?.runtime?.id) return;

@@ -332,6 +332,8 @@ function PrepareConvertedDownload(core, NicoDownloader, Nicovideo) {
     objectURL = URL.createObjectURL(blob);
     link.href = objectURL;
     link.download = Nicovideo.video_name;
+    link.dataset.ndlVideoId = Nicovideo.video_sm;
+    link.dataset.ndlPageUrl = NicoDownloader.TargetURL || globalThis.location?.href || "";
     link.style.display = "none";
     document.body.click();
     NicoDownloader.ButtonTextWrite("まもなく保存完了");
@@ -560,6 +562,12 @@ async function DownEncoder(NicoDownloader, m3u8s, Nicovideo) {
     ...m3u8s.slice(m3u8s.length / 2),
   ]);
   const segmentReclaimer = CreateMP4SegmentReclaimer(core, m3u8s, NicoDownloader);
+  const downloadController = new AbortController();
+  const previousSignal = NicoDownloader.DownloadSignal;
+  const forwardAbort = () => downloadController.abort(previousSignal.reason);
+  if (previousSignal?.aborted) forwardAbort();
+  else previousSignal?.addEventListener("abort", forwardAbort, { once: true });
+  NicoDownloader.DownloadSignal = downloadController.signal;
   try {
     core.setLogger(({ message }) => {
       const output = String(message);
@@ -571,13 +579,13 @@ async function DownEncoder(NicoDownloader, m3u8s, Nicovideo) {
     //URLsを片っ端から処理
     //落としてファイルシステムにいれていく
     let promises = [];
+    let completedFiles = 0;
     const BATCH_SIZE = 10; // 同時ダウンロード数を10に設定
 
     for (let i = 0; i < NicoDownloader.TSURLs.length; i++) {
       const promise = new Promise((resolve, reject) => {
         DownloadUint8Array(NicoDownloader.TSURLs[i], NicoDownloader).then(
           (byte) => {
-            let filenumber = i + 1;
 
             let filename = NicoDownloader.TSFilenames[i];
             core.FS.writeFile(filename, byte, { canOwn: true });
@@ -588,7 +596,7 @@ async function DownEncoder(NicoDownloader, m3u8s, Nicovideo) {
 
             //ダウンロードパーセンテージを計算
             const downpercentage =
-              (100 * filenumber) / NicoDownloader.TSURLs.length;
+              (100 * ++completedFiles) / NicoDownloader.TSURLs.length;
             if (downpercentage > NicoDownloader.DownloadPercentageGet()) {
               NicoDownloader.DownloadPercentageSet(downpercentage);
             }
@@ -615,6 +623,7 @@ async function DownEncoder(NicoDownloader, m3u8s, Nicovideo) {
           }
         ).catch(error => {
           console.error(`ダウンロードエラー: ${NicoDownloader.TSURLs[i]}`, error);
+          downloadController.abort(error);
           reject(error);
         });
       });
@@ -663,6 +672,7 @@ async function DownEncoder(NicoDownloader, m3u8s, Nicovideo) {
     const m3u8name = m3u8s[m3u8s.length - 1];
     NicoDownloader.ButtonTextWrite("結合処理中");
 
+    await NicoDownloader.FinalizeMetadata?.();
     let conversionError;
     try { await Transcode(core, m3u8name, NicoDownloader, Nicovideo); }
     catch (error) { conversionError = error; }
@@ -678,7 +688,11 @@ async function DownEncoder(NicoDownloader, m3u8s, Nicovideo) {
           if (index < 0) throw new Error("再取得する断片のURLがありません: " + filename);
           const bytes = await DownloadUint8Array(NicoDownloader.TSURLs[index], NicoDownloader);
           core.FS.writeFile(filename, bytes, { canOwn: true });
-        }));
+        }).map(promise => promise.catch(error => {
+          downloadController.abort(error);
+          throw error;
+        })));
+
         const failed = results.find((result) => result.status === "rejected");
         if (failed) throw failed.reason;
       }
@@ -696,6 +710,8 @@ async function DownEncoder(NicoDownloader, m3u8s, Nicovideo) {
     // バッチの全件完了を待ってから到達するので、解放後に書き込みは走らない。
     RemoveFFmpegFiles(core, [...inputFiles, NicoDownloader.FSOutputFileNameGet()]);
     core.setLogger(() => {});
+    previousSignal?.removeEventListener("abort", forwardAbort);
+    NicoDownloader.DownloadSignal = previousSignal;
   }
 }
 
@@ -760,28 +776,6 @@ async function Transcode(Core, m3u8name, NicoDownloader, Nicovideo) {
 }
 
 ////////////////////////////////////////////////////////////////////////
-/**
- * Option_setLoading関数は、指定された名前のローカルストレージの値を読み込み、localStorageに設定します。
- * 
- * @param {string} name - 読み込むローカルストレージの名前
- * @returns {string|number} - 指定された名前のローカルストレージの値。読み込みに失敗した場合は0を返します。
- */
-////////////////////////////////////////////////////////////////////////
-function Option_setLoading(name) {
-
-  try {
-    chrome.storage.local.get(name, function (value) {
-      //chrome.storage.localから読み出し
-      localStorage.setItem(name, value[name]);
-    })
-    //return return_val;
-    return localStorage.getItem(name);
-
-  } catch (error) {
-    return 0;
-  }
-
-}
 
 ////////////////////////////////////////////////////////////////////////
 /**
@@ -794,42 +788,77 @@ function Option_setLoading(name) {
  * @returns {Promise<*>}
  */
 ////////////////////////////////////////////////////////////////////////
+// 再試行待機も外部中断で解除し、タイマー・リスナーを残さない。
+function WaitDownloadRetry(ms, signal) {
+  return new Promise((resolve, reject) => {
+    const abortError = () => signal?.reason ?? new DOMException('中断されました', 'AbortError');
+    if (signal?.aborted) { reject(abortError()); return; }
+    const cleanup = () => { clearTimeout(timer); signal?.removeEventListener('abort', abort); };
+    const abort = () => { cleanup(); reject(abortError()); };
+    const timer = setTimeout(() => { cleanup(); resolve(); }, ms);
+    signal?.addEventListener('abort', abort, { once: true });
+    if (signal?.aborted) abort();
+  });
+}
+
 async function fetch_retry(url, NicoDownloader, options, n, readResponse) {
-  if (!Number.isInteger(n) || n < 1) {
-    throw new RangeError("最大試行回数は1以上の整数で指定してください。");
-  }
+  if (!Number.isInteger(n) || n < 1) throw new RangeError('最大試行回数は1以上の整数で指定してください。');
+  const external = options?.signal ?? NicoDownloader.DownloadSignal;
+  const abortReason = () => external?.reason ?? new DOMException('中断されました', 'AbortError');
   for (let attempt = 1; attempt <= n; attempt++) {
-    let failure;
-    let receivingBody = false;
+    if (external?.aborted) throw abortReason();
+    const controller = new AbortController();
+    let timedOut = false, receivingBody = false, failure, retryable = true, waitMs = 1000;
+    const forwardAbort = () => controller.abort(abortReason());
+    external?.addEventListener('abort', forwardAbort, { once: true });
+    const timer = setTimeout(() => {
+      timedOut = true;
+      controller.abort(new DOMException('120秒以内に受信を完了できませんでした', 'TimeoutError'));
+    }, 120000);
     try {
-      DebugPrint("fetchurl: " + url);
-      const response = await fetch(url, options);
+      if (external?.aborted) throw abortReason();
+      DebugPrint('fetchurl: ' + url);
+      const response = await fetch(url, { ...options, signal: controller.signal });
       if (response.status === 200) {
         if (!readResponse) return response;
         receivingBody = true;
         return await readResponse(response);
       }
-      // エラー応答の本文は使わない。接続と受信バッファを保持し続けない。
-      try { await response.body?.cancel(); } catch {}
+      // 本文破棄自体の完了待ちで再試行が止まらないようにする。
+      try { Promise.resolve(response.body?.cancel()).catch(() => {}); } catch {}
       failure = new Error(`HTTP ${response.status}: ${url}`);
       failure.status = response.status;
+      retryable = response.status === 408 || response.status === 429 || response.status >= 500 && response.status <= 599;
+      if (response.status === 429 || response.status === 503) {
+        const value = response.headers?.get('Retry-After');
+        if (value != null && String(value).trim()) {
+          const seconds = /^\d+$/.test(value) ? Number(value) : (Date.parse(value) - Date.now()) / 1000;
+          if (Number.isFinite(seconds)) waitMs = Math.min(30000, Math.max(1000, seconds * 1000));
+        }
+      }
     } catch (error) {
-      // 明示的な中断を通信失敗として再試行しない。
-      if (error?.name === "AbortError" || options?.signal?.aborted) throw error;
-      // 本文受信の通信エラーだけを再試行し、メモリ不足などは繰り返さない。
-      if (receivingBody && error?.name !== "TypeError") throw error;
-      failure = error;
+      if (external?.aborted) throw abortReason();
+      if (timedOut) failure = new Error('受信タイムアウト（120秒）');
+      else {
+        if (error?.name === 'AbortError') throw error;
+        failure = error;
+        retryable = error?.name === 'TypeError';
+      }
+    } finally {
+      clearTimeout(timer);
+      external?.removeEventListener('abort', forwardAbort);
     }
     NicoDownloader.DownloadFaultNumAdd();
-    const stage = receivingBody ? "本文受信失敗" : "通信失敗";
-    if (attempt === n) {
-      console.warn(`[nico downloader] ${stage}: 最大試行回数（${n}回）に達しました。`, url, failure);
+    const stage = timedOut ? '受信タイムアウト' : receivingBody ? '本文受信失敗' : '通信失敗';
+    if (!retryable || attempt === n) {
+      console.warn(`[nico downloader] ${stage}: ${retryable ? `最大試行回数（${n}回）に達しました` : '同じ要求では再試行せず終了します'}。`, url, failure);
       throw failure;
     }
-    console.warn(`[nico downloader] ${stage}: 1秒後に再試行します（${attempt}/${n}回）。`, url, failure);
-    await sleep(1000);
+    console.warn(`[nico downloader] ${stage}: ${waitMs / 1000}秒後に再試行します（${attempt}/${n}回）。`, url, failure);
+    await WaitDownloadRetry(waitMs, external);
   }
 }
+
 
 ////////////////////////////////////////////////////////////////////////
 /**

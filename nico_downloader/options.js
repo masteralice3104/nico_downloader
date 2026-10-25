@@ -14,53 +14,92 @@ LocalStorageで保存される値について
  */
 
 
+const NicoSettingsDefaults = {
+    newloading: "0", video_downloading: "0", video_filename_mode: "default",
+    video_filename_part_1: "uploader", video_filename_part_2: "title", video_filename_part_3: "id",
+    video_pattern: "sm[0-9]{1,}", shorts_video_pattern: "ss[0-9]{1,}", video_autosave: "0",
+    video_hlssave: "0", debug: "0", language_setting: "ja", downFile_setting: "mp4",
+    save_comments_json: "0",
+};
+const NicoSettingsCache = { ...NicoSettingsDefaults };
+let NicoSettingsResolve, NicoSettingsReject;
+const NicoSettingsReady = new Promise((resolve, reject) => { NicoSettingsResolve = resolve; NicoSettingsReject = reject; });
+// 初期化を待たないページでも、読み込み失敗を未処理の拒否にしない。
+NicoSettingsReady.catch(() => {});
+let NicoSettingsInitialized = false;
+const NicoSettingsRevisions = Object.create(null);
+chrome.storage.onChanged.addListener((changes, area) => {
+    if (area !== "local") return;
+    for (const [name, change] of Object.entries(changes)) {
+        NicoSettingsRevisions[name] = (NicoSettingsRevisions[name] || 0) + 1;
+        NicoSettingsApply({ [name]: Object.prototype.hasOwnProperty.call(change, "newValue") ? change.newValue : NicoSettingsDefaults[name] });
+    }
+});
+function NicoSettingsRefresh() {
+    return new Promise((resolve, reject) => {
+        const revisions = { ...NicoSettingsRevisions };
+        chrome.storage.local.get(null, (stored) => {
+            if (chrome.runtime.lastError) { reject(new Error(chrome.runtime.lastError.message)); return; }
+            for (const name of Object.keys(NicoSettingsCache)) {
+                if ((NicoSettingsRevisions[name] || 0) === (revisions[name] || 0)) {
+                    if (Object.prototype.hasOwnProperty.call(stored || {}, name)) NicoSettingsApply({ [name]: stored[name] });
+                    else NicoSettingsApply({ [name]: NicoSettingsDefaults[name] });
+                }
+            }
+            for (const [name, value] of Object.entries(stored || {})) {
+                if ((NicoSettingsRevisions[name] || 0) === (revisions[name] || 0)) NicoSettingsApply({ [name]: value });
+            }
+            if (!NicoSettingsInitialized) {
+                NicoSettingsInitialized = true;
+                NicoSettingsResolve();
+            }
+            resolve(NicoSettingsSnapshot());
+        });
+    });
+}
+NicoSettingsRefresh().catch((error) => {
+    if (!NicoSettingsInitialized) { NicoSettingsInitialized = true; NicoSettingsReject(error); }
+});
+function NicoSettingsSnapshot() { return { ...NicoSettingsCache }; }
+function NicoSettingsApply(values) {
+    for (const [name, value] of Object.entries(values || {})) {
+        NicoSettingsCache[name] = value === undefined ? (NicoSettingsDefaults[name] ?? 0) : String(value);
+    }
+    return NicoSettingsSnapshot();
+}
+globalThis.NicoSettings = {
+    ready: () => NicoSettingsReady,
+    refresh: NicoSettingsRefresh,
+    snapshot: NicoSettingsSnapshot,
+    get: (name) => NicoSettingsCache[name] ?? 0,
+    update: NicoSettingsUpdate,
+};
+function NicoSettingsUpdate(values) {
+    for (const name of Object.keys(values || {})) NicoSettingsRevisions[name] = (NicoSettingsRevisions[name] || 0) + 1;
+    return NicoSettingsApply(values);
+}
+
 function Option_setWriting(name, value) {
     //ローカルストレージに書き込みを行います
-    localStorage.setItem(name, value);
     chrome.storage.local.set({
         [name]: value
     }, function () {
-        //chrome.storage.localに保存
-    })
+        if (chrome.runtime.lastError) {
+            console.error("設定の保存に失敗しました:", name, chrome.runtime.lastError.message);
+            return;
+        }
+        NicoSettingsUpdate({ [name]: value });
+    });
     return true;
 }
 
 function Option_setLoading(name) {
-    //ローカルストレージより読み込みを行います
-    //return localStorage.getItem(name);//これだとだめ
-
-    try {
-        chrome.storage.local.get(name, function (value) {
-            //chrome.storage.localから読み出し
-            localStorage.setItem(name, value[name]);
-        })
-        //return return_val;
-
-        if (localStorage.getItem(name) === "undefined") {
-            return 0;
-        }
-        return localStorage.getItem(name);
-
-    } catch (error) {
-        return 0;
-    }
-
+    return NicoSettings.get(name);
 }
 
 //オプション値読み込み用関数
 function setOption(name) {
-    try {
-        if (Option_setLoading(name) === "undefined") {
-            return 0;
-        } else {
-
-            return Option_setLoading(name);
-        }
-
-    } catch (error) {
-        DebugPrint("SetOption:" + error)
-        return 0;
-    }
+    return Option_setLoading(name);
 }
 
 function newload() {
@@ -140,14 +179,27 @@ function DebugPrint(text) {
     }
 }
 
+function SanitizeVideoFilename(value, extension) {
+    const safeExtension = extension === "aac" ? "aac" : "mp4";
+    const maxUnits = 180 - safeExtension.length - 1;
+    let name = "", units = 0;
+    for (const character of String(value ?? "").replace(/[<>:"/\\|?*\u0000-\u001f]/g, "_").trim().replace(/[. ]+$/, "")) {
+        if (units + character.length > maxUnits) break;
+        name += character;
+        units += character.length;
+    }
+    name = name.replace(/[. ]+$/, "") || "video";
+    if (/^(?:con|prn|aux|nul|com[1-9]|lpt[1-9]|com[¹²³]|lpt[¹²³])(?:\.|$)/i.test(name)) name = "_" + name;
+    return name + "." + safeExtension;
+}
+
 // 通常動画のカスタム保存名と設定画面のプレビューで共用する。
 function BuildVideoFilename(parts, video, extension) {
     const clean = (value) => String(value ?? "").replace(/[<>:"/\\|?*\u0000-\u001f]/g, "_").trim().replace(/[. ]+$/, "");
     const values = { id: video.id, title: video.title, uploader: video.uploader };
     const name = parts.map((part) => Object.prototype.hasOwnProperty.call(values, part) ? clean(values[part]) : "")
         .filter(Boolean).join("_") || clean(video.id);
-    const safeName = /^(?:con|prn|aux|nul|com[1-9]|lpt[1-9])(?:\.|$)/i.test(name) ? "_" + name : name;
-    return safeName + "." + extension;
+    return SanitizeVideoFilename(name, extension);
 }
 
 // 通常動画・ショートのコメント保存。無効な間はレスポンスを保持しない。
@@ -291,6 +343,39 @@ function BuildVideoFilename(parts, video, extension) {
             reset();
             return cached?.href === location.href && cached.videoId === videoId && route() === videoId
                 ? { owner: cached.owner, series: cached.series } : null;
+        },
+    };
+    subscribe();
+})();
+
+// ページが取得した動画番号付きの親候補を、SPA移動をまたいで少数保持する。
+(() => {
+    if (location.origin !== 'https://www.nicovideo.jp' || !globalThis.chrome?.runtime?.id) return;
+    const channel = 'nico-downloader-playlist-source-v1', client = crypto.randomUUID(), records = new Map();
+    const subscribe = () => window.postMessage({ channel, client, type: 'subscribe' }, location.origin);
+    window.addEventListener('message', event => {
+        const d = event.data;
+        if (event.source !== window || event.origin !== location.origin || d?.channel !== channel) return;
+        if (d.type === 'ready') { subscribe(); return; }
+        if (d.type !== 'source' || d.client !== client || !/^(?:sm|ss)[0-9]+$/.test(d.videoId) || typeof d.url !== 'string' || !Number.isFinite(d.receivedAt) || !Number.isSafeInteger(d.order) || d.order < 1) return;
+        try {
+            const url = new URL(d.url);
+            if (url.origin !== 'https://delivery.domand.nicovideo.jp' || url.username || url.password || !/^\/hlsbid\/[^/]+\/playlists\/.+/.test(url.pathname)) return;
+            const prior = records.get(d.videoId);
+            if (prior?.order >= d.order) return;
+            records.delete(d.videoId); records.set(d.videoId, { url: d.url, receivedAt: d.receivedAt, order: d.order });
+            while (records.size > 8) records.delete(records.keys().next().value);
+            console.info('[nico downloader] ページPOSTから親m3u8候補を取得:', d.videoId, d.url);
+            window.dispatchEvent(new Event('nico-downloader-playlist-source-ready'));
+        } catch {}
+    });
+    globalThis.NicoPlaylistSources = {
+        get(videoId) {
+            const entry = records.get(videoId);
+            if (!entry || Date.now() - entry.receivedAt > 5 * 60 * 1000) return null;
+            const expires = new URL(entry.url).searchParams.get('Expires');
+            if (expires && /^\d+$/.test(expires) && Number(expires) * 1000 <= Date.now() + 5000) return null;
+            return { ...entry };
         },
     };
     subscribe();

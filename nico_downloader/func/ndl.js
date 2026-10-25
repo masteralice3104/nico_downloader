@@ -227,12 +227,11 @@ class NicoDownloaderClass {
             }
         }
         let ret = this.VideoDownloadNameArray;
-        ret = ret.replace("${NicoDownloaderClasssmID}", video_smID);
-        ret = ret.replace("${NicoDownloaderClasstitle}", video_title);
+        ret = ret.replace("${NicoDownloaderClasssmID}", () => video_smID);
+        ret = ret.replace("${NicoDownloaderClasstitle}", () => video_title);
 
         //拡張子をつける
-        ret = ret + "." + video_type;
-        return ret;
+        return SanitizeVideoFilename(ret, video_type);
     }
 
     ////////////////////////////////////////////////////////////////////////
@@ -390,6 +389,9 @@ class NicoDownloaderClass {
     */
     ////////////////////////////////////////////////////////////////////////
     ButtonTextWrite(text) {
+        const wrapper = document.getElementById(VideoData.Video_DLlink.p);
+        if (this.TargetVideoId && (!wrapper || wrapper.dataset.ndlVideoId !== this.TargetVideoId)) return false;
+        if (this.TargetURL && location.href !== this.TargetURL) return false;
         const button = document.getElementById(VideoData.Video_DLlink.a)?.querySelector("button");
         const label = this.LangText(text);
         if (button && text !== "確認中") {
@@ -687,7 +689,8 @@ class NicoDownloaderClass {
             return VideoData.DLButton.a + " onclick=\'location.href=&quot;" + this.optionURL + "&quot;\' " + VideoData.DLButton.b + this.LangText("要初期設定") + "<a href=\"" + this.optionURL + "\"><br>" + this.LangText("設定画面を開く") + "</a>" + VideoData.DLButton.c;
         }
 
-        return VideoData.DLButton.a + " onclick=\'" + this.SystemMessageAutoOpenToText() + "\' " + VideoData.DLButton.b + video_name + this.LangText("を保存") + VideoData.DLButton.c + "</p>";
+        const escapeHTML = (value) => String(value).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
+        return VideoData.DLButton.a + " onclick=\'" + this.SystemMessageAutoOpenToText() + "\' " + VideoData.DLButton.b + escapeHTML(video_name) + escapeHTML(this.LangText("を保存")) + VideoData.DLButton.c + "</p>";
     }
 
     ////////////////////////////////////////////////////////////////////////
@@ -698,10 +701,42 @@ class NicoDownloaderClass {
      * @returns {Boolean}
     */
     ////////////////////////////////////////////////////////////////////////
+    // 親URLが見つからないショートは、余分な保存操作をせず再読み込みを案内する。
+    ReloadButtonMake(videoId) {
+        const wrapper = document.getElementById(VideoData.Video_DLlink.p);
+        const content = document.getElementById(VideoData.Video_DLlink.a);
+        if (!wrapper || wrapper.dataset.ndlVideoId !== videoId || !content || !IsShortVideoPage()) return;
+        const old = content.querySelector("button");
+        if (old?.dataset.ndlReload === "1") return;
+        clearTimeout(old?._ndlStartTimer);
+        if (old) delete old.dataset.ndlStartPending;
+        const button = document.createElement("button");
+        button.type = "button";
+        button.textContent = "Reloadする";
+        button.title = "親m3u8を取得できませんでした。ページを再読み込みします。";
+        button.setAttribute("aria-label", button.title);
+        button.dataset.ndlReload = "1";
+        button.style.cssText = "display:inline-flex;align-items:center;justify-content:center;min-width:88px;min-height:40px;padding:8px;border:0;border-radius:20px;background:var(--colors-action-base,#333);color:var(--colors-action-text-on-base,#fff);font-size:12px;font-weight:bold;cursor:pointer";
+        const pageURL = location.href;
+        button.addEventListener("click", event => {
+            event.preventDefault();
+            event.stopImmediatePropagation();
+            if (location.href === pageURL && wrapper.dataset.ndlVideoId === videoId) location.reload();
+        });
+        content.replaceChildren(button);
+        wrapper.dataset.ndlInitialPending = "1";
+    }
+
     SaveButtonMake(video_name) {
         // 定期確認で、クリック直後の「確認中」を通常ボタンへ戻さない。
         const current = document.getElementById(VideoData.Video_DLlink.a)?.querySelector("button");
-        if (current?.dataset.ndlStartPending || this.VideoDownloadingCheck()) return;
+        if (current?.dataset.ndlStartPending || current?.dataset.ndlStatus === "busy" || current?.dataset.ndlStatus === "completed" || this.VideoDownloadingCheck()) return;
+        const source = typeof domandPlaylistCapture !== "undefined" ? domandPlaylistCapture : null;
+        if (this.Savemode != "0" && IsShortVideoPage() && source && !source.available() &&
+            !source.active && !source.queue.length && (source.seen.size || current?.dataset.ndlReload)) {
+            this.ReloadButtonMake(source.route);
+            return;
+        }
         const innerHTML = this.SaveButtonInnerHTMLMake(video_name);
         this.ButtonInnerHTMLWrite(innerHTML);
         const wrapper = document.getElementById(VideoData.Video_DLlink.p);
@@ -834,6 +869,10 @@ class NicoDownloaderClass {
             //ダウンロードのタグがあればクリック
             const link = document.getElementById(VideoData.Video_DLlink.a2);
             const objectURL = link.href;
+            const previousTargetVideoId = this.TargetVideoId;
+            const previousTargetURL = this.TargetURL;
+            const targetVideoId = link.dataset?.ndlVideoId;
+            const targetURL = link.dataset?.ndlPageUrl;
             try {
                 link.click();
             } finally {
@@ -843,7 +882,14 @@ class NicoDownloaderClass {
                     setTimeout(() => URL.revokeObjectURL(objectURL), 60000);
                 }
             }
-            this.ButtonTextWrite(this.LangText("保存完了")); //ボタンの文字を変更
+            try {
+                if (targetVideoId) this.TargetVideoId = targetVideoId;
+                if (targetURL) this.TargetURL = targetURL;
+                this.ButtonTextWrite(this.LangText("保存完了")); //ボタンの文字を変更
+            } finally {
+                this.TargetVideoId = previousTargetVideoId;
+                this.TargetURL = previousTargetURL;
+            }
         }
     }
 
@@ -856,14 +902,7 @@ class NicoDownloaderClass {
      */
     ////////////////////////////////////////////////////////////////////////
     async DownloadTextWithCookie(URL) {
-        return await fetch(URL, { credentials: 'include' })
-            .then((response) => {
-                if (response.status !== 200) {
-                    DebugPrint("Error downloading :" + URL);
-                    return -1;
-                }
-                return response.text();
-            });
+        return fetch_retry(URL, this, { credentials: "include" }, 100, (response) => response.text());
     }
 
     ////////////////////////////////////////////////////////////////////////

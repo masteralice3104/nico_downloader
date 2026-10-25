@@ -54,7 +54,18 @@ window.addEventListener("hashchange", ResetVideoMetadataForURL);
 window.navigation?.addEventListener("currententrychange", ResetVideoMetadataForURL);
 
 
+let videoDownRunning = false;
 async function VideoDown() {
+    if (videoDownRunning) return false;
+    videoDownRunning = true;
+    try { return await VideoDownOnce(); }
+    finally { videoDownRunning = false; }
+}
+
+async function VideoDownOnce() {
+    const pageURL = location.href;
+    await globalThis.NicoSettings.ready();
+    if (pageURL !== location.href) return false;
     ResetVideoMetadataForURL();
     // 必要なクラスの初期化
     const NicoDownloader = new NicoDownloaderClass(); //NicoDownloaderクラスの初期化
@@ -89,15 +100,14 @@ async function VideoDown() {
 
     // 定期確認で再要求せず、保存操作時の失敗再試行は1回まで。
     if (!await LoadVideoMetadataOnce(Nicovideo)) return false;
+    Nicovideo.CompletePageMetadata?.();
     if (Nicovideo.video_title == "") {
         Nicovideo.video_title = Nicovideo.GetPageTitle() || Nicovideo.video_sm;
         DebugPrint("Using fallback video title: " + Nicovideo.video_title);
     }
 
-    Nicovideo.CompletePageMetadata?.();
-
     // デフォルト動画ファイル名の定義
-    const filenameSettings = await filenameSettingsGet();
+    const filenameSettings = globalThis.NicoSettings.snapshot();
     const downFile_setting = filenameSettings.downFile_setting;
     DebugPrint("downFile_setting:" + downFile_setting); // 取得した値を表示
 
@@ -111,29 +121,13 @@ async function VideoDown() {
     Nicovideo.video_name = video_name;
 
     // 情報取得中にページが切り替わった場合、古い動画のボタンを描画しない。
-    if (failedDownloadId === Nicovideo.video_sm || !Nicovideo.CheckNicovideoWatchURL() ||
+    if (pageURL !== location.href || failedDownloadId === Nicovideo.video_sm || !Nicovideo.CheckNicovideoWatchURL() ||
         Nicovideo.VideoSmGet(NicoDownloader.MatchingSMIDArray) !== Nicovideo.video_sm) return false;
 
     // すでに作ったリンクがあるかどうか判別し、あれば削除
     NicoDownloader.VideoTitleElementCheck(Nicovideo.video_sm);
 
     DebugPrint("video_name:" + Nicovideo.video_name);
-
-    // 保存形式と通常動画専用の保存名設定をまとめて取得する。
-    function filenameSettingsGet() {
-        return new Promise((resolve, reject) => {
-            chrome.storage.local.get({
-                downFile_setting: "mp4", video_filename_mode: "default",
-                video_filename_part_1: "uploader", video_filename_part_2: "title", video_filename_part_3: "id",
-            }, function (value) {
-                if (chrome.runtime.lastError) {
-                    reject(chrome.runtime.lastError);
-                } else {
-                    resolve(value);
-                }
-            });
-        });
-    }
 
     if (NicoDownloader.VideoLoadedCheck(Nicovideo.video_sm)) return true;
     if (!NicoDownloader.ButtonFirstMake(Nicovideo.video_sm)) return false;
@@ -174,7 +168,7 @@ try {
         }
     }, 2000);
 } catch (error) {
-    console.log(e);
+    console.log(error);
 }
 
 //ページ表示時発火処理
@@ -196,16 +190,47 @@ function documentWriteText(URItext) {
  * @param {NicoDownloaderClass} NicoDownloader
  */
 
+// 開始時の設定を固定し、変換直前までに受信した同じページの情報を採用する。
+function FinalizeDownloadMetadata(video, downloader, settings, pageURL) {
+    if (location.href === pageURL) {
+        const latest = new NicovideoClass();
+        latest.video_sm = video.video_sm;
+        latest.CompletePageMetadata?.();
+        if (!latest.video_title) latest.video_title = latest.GetPageTitle();
+        for (const key of ["video_title", "video_owner", "video_registeredAt", "video_description", "video_tags", "video_genre", "video_series"]) {
+            const value = latest[key];
+            if (Array.isArray(value) ? value.length : typeof value === "string" && value.trim()) {
+                video[key] = Array.isArray(value) ? [...value] : value;
+            }
+        }
+        video.page_counts = { ...video.page_counts, ...latest.page_counts };
+    }
+    // ページ移動後は元動画の情報・形式だけを使い、新しいページを参照しない。
+    video.video_name = downloader.VideoDownloadNameMake(video.video_sm, video.video_title || video.video_sm,
+        settings.downFile_setting, settings, video.video_owner);
+}
+
 async function MovieDownload_domand(Nicovideo, NicoDownloader) {
     if (NicoDownloader.VideoDownloadingCheck()) return false;
+    const pageURL = location.href;
+    if (domandPlaylistCapture.videoAt(pageURL) !== Nicovideo.video_sm) return false;
+    const masterURL = NicoDownloader.MasterURLGet();
+    const settings = Object.freeze(globalThis.NicoSettings.snapshot());
+    NicoDownloader.TargetVideoId = Nicovideo.video_sm;
+    NicoDownloader.TargetURL = pageURL;
+    // 基本保存名の選択も、開始時点の値から固定する。
+    NicoDownloader.VideoDownloadNameArray = ["${NicoDownloaderClasssmID}", "${NicoDownloaderClasstitle}",
+        "${NicoDownloaderClasssmID}_${NicoDownloaderClasstitle}", "${NicoDownloaderClasstitle}_${NicoDownloaderClasssmID}"][Number(settings.video_downloading)] || "${NicoDownloaderClasssmID}";
+    NicoDownloader.FinalizeMetadata = () => FinalizeDownloadMetadata(Nicovideo, NicoDownloader, settings, pageURL);
     NicoDownloader.VideoDownloadingSet();
     try {
+        NicoDownloader.FinalizeMetadata();
         NicoDownloader.ButtonTextWrite("処理中");
         // 保存開始時のファイル名で形式を固定し、取得対象と変換形式を揃える。
         NicoDownloader.SetVideoFormat(Nicovideo.video_name);
         const audioOnly = NicoDownloader.CheckVideoFormat() === "aac";
         //Firstm3u8URLを取得
-        const Firstm3u8URL = NicoDownloader.MasterURLGet();
+        const Firstm3u8URL = masterURL;
 
         //Firstm3u8URLの取得に失敗した場合は終了
         if (Firstm3u8URL == false) throw new Error("親m3u8のURLを取得できませんでした。");
@@ -399,12 +424,9 @@ function StartInitialButtonObserver() {
     let settingsRequest = 0;
     const loadSettings = () => {
         const request = ++settingsRequest;
-        chrome.storage.local.get(defaults, (value) => {
+        globalThis.NicoSettings.ready().then(() => {
+            const value = globalThis.NicoSettings.snapshot();
             if (request !== settingsRequest) return;
-            if (chrome.runtime.lastError) {
-                console.warn("初期ボタンの設定取得に失敗しました:", chrome.runtime.lastError.message);
-                return;
-            }
             const pattern = !value.video_pattern || value.video_pattern === "0"
                 ? defaults.video_pattern : String(value.video_pattern);
             const shortPattern = !value.shorts_video_pattern || value.shorts_video_pattern === "0"
@@ -425,7 +447,7 @@ function StartInitialButtonObserver() {
             };
             domandPlaylistCapture.syncRoute();
             schedule();
-        });
+        }).catch(error => console.warn("初期ボタンの設定取得に失敗しました:", error));
     };
     chrome.storage.onChanged.addListener((changes, area) => {
         if (area === "local" && Object.keys(defaults).some((name) => name in changes)) loadSettings();
@@ -448,6 +470,7 @@ class DomandPlaylistCapture {
         this.closed = false;
         this.candidate = null;
         this.requested = null;
+        this.sourceToken = null;
         this.logged = new Set();
         try {
             const navigation = performance.getEntriesByType("navigation")[0];
@@ -463,7 +486,10 @@ class DomandPlaylistCapture {
         } catch (error) {
             this.report("監視開始", "リソースURL監視を開始できませんでした。", error);
         }
-        window.addEventListener("popstate", () => this.syncRoute());
+        window.addEventListener("nico-downloader-playlist-source-ready", () => {
+            this.syncRoute(); this.syncSource(); this.pump();
+        });
+        window.addEventListener("popstate", () => { this.syncRoute(); this.syncSource(); this.pump(); });
         window.addEventListener("hashchange", () => this.syncRoute());
         window.navigation?.addEventListener("currententrychange", () => this.syncRoute());
         window.addEventListener("pagehide", () => {
@@ -525,6 +551,7 @@ class DomandPlaylistCapture {
         this.queue = [];
         this.candidate = null;
         this.requested = null;
+        this.sourceToken = null;
         for (const controller of this.controllers) controller.abort();
         for (const resolve of this.idleWaiters.splice(0)) resolve();
     }
@@ -534,17 +561,40 @@ class DomandPlaylistCapture {
         return this.route;
     }
 
+    syncSource() {
+        if (this.closed || !this.route) return;
+        const source = globalThis.NicoPlaylistSources?.get(this.route);
+        if (!source || !this.matches(source.url)) return;
+        const token = this.route + ":" + source.url + ":" + source.receivedAt + ":" + source.order;
+        if (this.sourceToken === token) return;
+        this.sourceToken = token;
+        // APIの要求URLに動画番号があるため、先読みでも対象動画を確実に区別できる。
+        this.seen.add(source.url);
+        this.queue.unshift({ url: source.url, route: this.route, generation: this.generation,
+            startTime: this.now(), explicit: true, receivedAt: source.receivedAt, sourceOrder: source.order });
+        this.report("ページPOST", "動画番号に対応する親URL候補を確認します。", { videoId: this.route, url: source.url });
+    }
+
     accept(entries) {
         const route = this.syncRoute();
         if (this.closed || !route) return;
+        this.syncSource();
         for (const entry of entries) {
             if (entry.entryType !== "resource" || !Number.isFinite(entry.startTime) ||
                 entry.startTime < this.since || !this.matches(entry.name) || this.seen.has(entry.name)) continue;
             if (this.seen.size >= 64) this.seen.delete(this.seen.values().next().value);
             this.seen.add(entry.name); // 確認用fetch自身の記録による再取得を防ぐ。
             this.report("URL検出", "対象URLを検出しました。", entry.name);
+            if (new URL(entry.name).pathname.includes("/playlists/media/")) {
+                this.report("子URL検出", "子プレイリストを検出しました。親確認の待ち行列には追加しません。", entry.name);
+                continue;
+            }
             this.queue.push({ url: entry.name, startTime: entry.startTime, route, generation: this.generation });
-            if (this.queue.length > 8) this.queue.shift();
+            // 古い親候補を子URLの大量到着で押し出さない。保持済みURLの上限はseenで管理する。
+            if (this.queue.length > 64) {
+                const removed = this.queue.pop();
+                this.report("確認待ち上限", "最新候補を保留しました。先に受信した親候補の確認を優先します。", removed.url);
+            }
         }
         this.pump();
     }
@@ -591,9 +641,11 @@ class DomandPlaylistCapture {
             }
             // ショートは後続動画を先読みするため、現在のページで最初に要求された親URLを保持する。
             // 検証の完了順ではなくリクエスト開始時刻で選び、通常動画の選択方法は変えない。
-            const prefer = this.route?.startsWith("ss")
-                ? !this.candidate || entry.startTime < this.candidate.startTime
-                : !this.candidate || entry.startTime >= this.candidate.startTime;
+            const prefer = entry.explicit
+                ? !this.candidate?.explicit || (entry.sourceOrder || 0) >= (this.candidate.sourceOrder || 0)
+                : !this.candidate?.explicit && (this.route?.startsWith("ss")
+                    ? !this.candidate || entry.startTime < this.candidate.startTime
+                    : !this.candidate || entry.startTime >= this.candidate.startTime);
             if (prefer) {
                 this.candidate = { ...entry, checkedAt: this.now() };
                 console.log("[nico downloader] 親m3u8取得成功:", entry.url);
@@ -613,13 +665,19 @@ class DomandPlaylistCapture {
 
     available() {
         this.syncRoute();
+        this.syncSource();
+        this.pump();
         // 署名付きURLは古い候補を使わず、従来の取得方法へ戻す。
-        return !this.closed && this.candidate && this.now() - this.candidate.checkedAt < 60000
+        const expires = this.candidate && new URL(this.candidate.url).searchParams.get("Expires");
+        const validSignature = !expires || !/^\d+$/.test(expires) || Number(expires) * 1000 > Date.now() + 5000;
+        return !this.closed && this.candidate && validSignature && this.now() - this.candidate.checkedAt < 60000
             ? this.candidate : null;
     }
 
     async claim(event) {
         const route = this.syncRoute();
+        this.syncSource();
+        this.pump();
         // 失敗後の定期確認による自動再実行を止め、明示的なクリックで再開する。
         if (failedDownloadId === route) failedDownloadId = null;
         if (IsShortVideoPage() && (NicovideoDownloader__NowDownloading || NicovideoDownloader__LoadedVideoSMID === route)) {
@@ -642,12 +700,10 @@ class DomandPlaylistCapture {
                 this.requested = candidate;
                 console.log("[nico downloader] ショート保存対象:", route, candidate.url);
             } else if (button?.isConnected) {
-                // URL確認中に無効化したボタンを、従来経路へ渡す前に戻す。
-                delete button.dataset.ndlStartPending;
-                clearTimeout(button._ndlStartTimer);
-                delete button._ndlStartTimer;
-                button.disabled = false;
-                button.click(); // 確認が全て失敗した場合も、従来のメニュー取得へ自動で進む。
+                shortsDownloadRequested = null;
+                this.requested = null;
+                this.report("再読込案内", "親m3u8を取得できないためReloadするボタンを表示します。");
+                new NicoDownloaderClass().ReloadButtonMake(route);
             }
             return;
         }
@@ -659,6 +715,15 @@ class DomandPlaylistCapture {
                 this.seen.size ? "検出したURLから利用できる親m3u8を確認できませんでした。上の取得・判定ログを確認してください。" :
                 "対象URLがリソース記録に見つかりません。";
             this.report("保存ボタン押下", reason);
+            if (IsShortVideoPage()) {
+                event.preventDefault();
+                event.stopImmediatePropagation();
+                shortsDownloadRequested = null;
+                this.requested = null;
+                this.report("再読込案内", "親m3u8を取得できないためReloadするボタンを表示します。");
+                new NicoDownloaderClass().ReloadButtonMake(route);
+                return;
+            }
             this.report("従来経路", "システムメッセージからのURL取得に切り替えます。");
             return; // 既存のonclickをそのまま実行し、システムメッセージを開く。
         }
@@ -758,6 +823,7 @@ const domandPlaylistCapture = new DomandPlaylistCapture();
                             status.textContent = '保存に失敗しました。もう一度お試しください。';
                         } else {
                             values[key] = next;
+                            globalThis.NicoSettings.update({ [key]: next });
                             status.textContent = key === 'save_comments_json' && next === '1'
                                 ? '保存しました。コメント未受信の場合はページを再読み込みしてください。'
                                 : '設定を保存しました。次の保存に反映されます。';
