@@ -23,7 +23,7 @@ function Start_Dic() {
         //html要素作成
         let button_threadnext = document.createElement('button');
         button_threadnext.id = `next_30`;
-        button_threadnext.innerHTML = `次の30件を読込`;
+        button_threadnext.innerHTML = `次の30件を読み込み`;
         if (end_res % 30 == 0) {
             document.getElementsByClassName("st-bbs_resbody")[document.getElementsByClassName("st-bbs_resbody").length - 1].after(button_threadnext);
             document.getElementById("next_30").onclick = next_30load;
@@ -31,7 +31,7 @@ function Start_Dic() {
 
         let button_threadprev = document.createElement('button');
         button_threadprev.id = `prev_30`;
-        button_threadprev.innerHTML = `前の30件を読込`;
+        button_threadprev.innerHTML = `前の30件を読み込み`;
         if (start_res != 0) {
             document.getElementsByClassName("st-bbs_reshead")[0].before(button_threadprev);
             document.getElementById("prev_30").onclick = prev_30load;

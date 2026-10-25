@@ -360,7 +360,7 @@ function StartInitialButtonObserver() {
             if (!preview.ButtonFirstMake(videoId)) return;
             wrapper = document.getElementById(VideoData.Video_DLlink.p);
             preview.ButtonInnerHTMLWrite(VideoData.DLButton.a + VideoData.DLButton.b +
-                "読込中…" + VideoData.DLButton.c);
+                (globalThis.NicoSettings.get("language_setting") === "en" ? "Loading…" : "読み込み中…") + VideoData.DLButton.c);
             const button = document.getElementById(VideoData.Video_DLlink.a).querySelector("button");
             if (button) button.disabled = true;
             wrapper.dataset.ndlInitialPending = "settings";
@@ -762,9 +762,10 @@ const domandPlaylistCapture = new DomandPlaylistCapture();
         if (saving) return;
         close();
         const revision = generation, route = location.href;
+        const ui = (ja, en) => globalThis.NicoSettings.get('language_setting') === 'en' ? en : ja;
         menu = document.createElement('div');
         menu.setAttribute('role', 'dialog');
-        menu.setAttribute('aria-label', '保存のクイック設定');
+        menu.setAttribute('aria-label', ui("保存のクイック設定","Quick save settings"));
         menu.style.cssText = 'position:fixed;z-index:2147483647;box-sizing:border-box;width:280px;max-width:calc(100vw - 16px);max-height:calc(100vh - 16px);overflow:auto;padding:16px;border:1px solid #666;border-radius:12px;background:#252525;color:#fff;font:14px/1.6 sans-serif;box-shadow:0 6px 24px #0008';
         const position = () => {
             const rect = menu.getBoundingClientRect();
@@ -772,12 +773,12 @@ const domandPlaylistCapture = new DomandPlaylistCapture();
             menu.style.top = Math.max(8, Math.min(event.clientY, innerHeight - rect.height - 8)) + 'px';
         };
         const heading = document.createElement('strong');
-        heading.textContent = '保存のクイック設定';
+        heading.textContent = ui("保存のクイック設定","Quick save settings");
         menu.append(heading);
         const status = document.createElement('p');
         status.style.cssText = 'margin:10px 0 0;color:#ccc;font-size:12px';
         status.setAttribute('role', 'status');
-        status.textContent = '設定を読み込み中…';
+        status.textContent = ui("設定を読み込み中…","Loading settings\u2026");
         menu.append(status);
         document.documentElement.append(menu);
         position();
@@ -785,7 +786,7 @@ const domandPlaylistCapture = new DomandPlaylistCapture();
         chrome.storage.local.get({ downFile_setting: 'mp4', save_comments_json: '0' }, (values) => {
             if (revision !== generation || menu !== panel) return;
             if (chrome.runtime.lastError) {
-                status.textContent = '設定を読み込めませんでした。右クリックで開き直してください。';
+                status.textContent = ui("設定を読み込めませんでした。右クリックで開き直してください。","Could not load settings. Right-click to try again.");
                 return;
             }
             const fields = document.createElement('fieldset');
@@ -793,9 +794,9 @@ const domandPlaylistCapture = new DomandPlaylistCapture();
             fields.disabled = !!busy();
             const controls = [];
             for (const [label, key, value, type] of [
-                ['MP4（動画）', 'downFile_setting', 'mp4', 'radio'],
-                ['AAC（音声のみ）', 'downFile_setting', 'aac', 'radio'],
-                ['コメントJSONも保存', 'save_comments_json', '1', 'checkbox'],
+                [ui("MP4（動画）","MP4 (video)"), 'downFile_setting', 'mp4', 'radio'],
+                [ui("AAC（音声のみ）","AAC (audio only)"), 'downFile_setting', 'aac', 'radio'],
+                [ui("コメントJSONも保存","Also save comment JSON"), 'save_comments_json', '1', 'checkbox'],
             ]) {
                 const row = document.createElement('label');
                 row.style.cssText = 'display:flex;align-items:center;gap:10px;padding:7px 0;cursor:pointer';
@@ -810,7 +811,7 @@ const domandPlaylistCapture = new DomandPlaylistCapture();
                 input.addEventListener('change', () => {
                     if (saving || busy() || location.href !== route) {
                         for (const control of controls) control.input.checked = values[control.key] === control.value;
-                        status.textContent = '処理中・ページ移動後は変更できません。開き直してください。';
+                        status.textContent = ui("処理中・ページ移動後は変更できません。開き直してください。","Settings cannot be changed while processing or after navigation. Reopen this menu.");
                         return;
                     }
                     const next = type === 'checkbox' ? input.checked ? '1' : '0' : value;
@@ -820,13 +821,13 @@ const domandPlaylistCapture = new DomandPlaylistCapture();
                         saving = false;
                         if (chrome.runtime.lastError) {
                             for (const control of controls) control.input.checked = values[control.key] === control.value;
-                            status.textContent = '保存に失敗しました。もう一度お試しください。';
+                            status.textContent = ui("保存に失敗しました。もう一度お試しください。","Could not save settings. Please try again.");
                         } else {
                             values[key] = next;
                             globalThis.NicoSettings.update({ [key]: next });
                             status.textContent = key === 'save_comments_json' && next === '1'
-                                ? '保存しました。コメント未受信の場合はページを再読み込みしてください。'
-                                : '設定を保存しました。次の保存に反映されます。';
+                                ? ui("保存しました。コメント未受信の場合はページを再読み込みしてください。","Saved. Reload the page if comment JSON has not been received.")
+                                : ui("設定を保存しました。次の保存に反映されます。","Settings saved. Changes apply to the next download.");
                             const button = wrapper.querySelector('button');
                             if (key === 'downFile_setting' && wrapper.isConnected && location.href === route &&
                                 !busy() && button?.dataset.ndlStatus !== 'completed') {
@@ -839,7 +840,7 @@ const domandPlaylistCapture = new DomandPlaylistCapture();
                 });
             }
             panel.insertBefore(fields, status);
-            status.textContent = fields.disabled ? '保存処理中は変更できません。' : '変更は自動保存されます。コメント未受信なら、有効後に再読み込みしてください。';
+            status.textContent = fields.disabled ? ui("保存処理中は変更できません。","Settings cannot be changed while saving.") : ui("変更は自動保存されます。コメント未受信なら、有効後に再読み込みしてください。","Changes are saved automatically. After enabling comments, reload if JSON has not been received.");
             position();
             controls[0].input.focus({ preventScroll: true });
         });

@@ -83,8 +83,18 @@ class NicoDownloaderClass {
     //多言語対応
     Lang = {
         "ja": {
+            "フレーム": "フレーム",
+            "確認中": "確認中",
+            "結合処理中": "結合処理中",
+            "ダウンロードに失敗しました": "ダウンロードに失敗しました",
+            "保存終了": "保存終了",
+            "ダウンロード": "ダウンロード",
+            "Reloadする": "Reloadする",
+            "親m3u8を取得できませんでした。ページを再読み込みします。": "親m3u8を取得できませんでした。ページを再読み込みします。",
+            "メモリ不足エラー": "メモリ不足エラー",
+
             "処理開始": "処理開始",
-            "MainVideoPlayerが読み込めません": "MainVideoPlayerが読み込めません",
+            "動画プレイヤーを読み込めません": "動画プレイヤーを読み込めません",
             "要初期設定": "nico downloaderの初期設定を行ってください",
             "設定画面を開く": "設定画面を開く",
             "を保存": "を保存",
@@ -97,8 +107,18 @@ class NicoDownloaderClass {
             "ダウンロード中": "ダウンロード中",
         },
         "en": {
+            "フレーム": "frame",
+            "確認中": "Checking",
+            "結合処理中": "Merging",
+            "ダウンロードに失敗しました": "Download failed",
+            "保存終了": "Saved",
+            "ダウンロード": "Download",
+            "Reloadする": "Reload",
+            "親m3u8を取得できませんでした。ページを再読み込みします。": "The master playlist could not be found. Reload this page.",
+            "メモリ不足エラー": "Not enough memory",
+
             "処理開始": "Processing start",
-            "MainVideoPlayerが読み込めません": "MainVideoPlayer can't be loaded",
+            "動画プレイヤーを読み込めません": "Unable to load the video player",
             "要初期設定": "Please set up nico downloader",
             "設定画面を開く": "Open setting page",
             "を保存": " Save",
@@ -399,7 +419,7 @@ class NicoDownloaderClass {
             clearTimeout(button._ndlStartTimer);
             delete button._ndlStartTimer;
         }
-        const busy = /処理中|処理開始|確認中|ダウンロード中|変換中|変換終了|まもなく保存完了|Processing|Downloading|Converting|Conversion finished|Saved soon/.test(label);
+        const busy = /処理中|処理開始|確認中|ダウンロード中|変換中|変換終了|まもなく保存完了|Processing|Downloading|Converting|Conversion finished|Saved soon|Checking|Merging/.test(label);
         if (button && IsShortVideoPage()) {
             this.ShortButtonStatus(button, label, busy);
             return;
@@ -408,12 +428,12 @@ class NicoDownloaderClass {
         const icon = button?.querySelector("svg");
         if (caption && icon) {
             const completed = label.trim() === this.LangText("保存完了").trim();
-            caption.textContent = completed ? "保存終了" : label;
+            caption.textContent = completed ? this.LangText("保存終了") : label;
             button.setAttribute("aria-busy", String(busy && !completed));
             button.disabled = busy || completed;
             if (completed) {
-                button.title = "保存終了";
-                button.setAttribute("aria-label", "保存終了");
+                button.title = this.LangText("保存終了");
+                button.setAttribute("aria-label", this.LangText("保存終了"));
                 button.style.setProperty("color", "#999");
                 button.style.setProperty("fill", "currentColor");
                 button.style.setProperty("background-color", "#333");
@@ -448,7 +468,7 @@ class NicoDownloaderClass {
                 button.removeAttribute("style");
                 button.type = "button";
                 button.tabIndex = 0;
-                button.setAttribute("aria-label", "ダウンロード");
+                button.setAttribute("aria-label", this.LangText("ダウンロード"));
                 button.title = label;
                 button.querySelector("b")?.remove();
                 const svg = button.querySelector("svg");
@@ -471,9 +491,9 @@ class NicoDownloaderClass {
     ShortButtonStatus(button, label, busy) {
         const completed = label.trim() === this.LangText("保存完了").trim();
         const status = completed ? "completed" : busy ? "busy" : "idle";
-        const displayLabel = completed ? "保存終了" : label;
+        const displayLabel = completed ? this.LangText("保存終了") : label;
         button.title = displayLabel;
-        button.setAttribute("aria-label", completed || busy ? displayLabel : "ダウンロード：" + label);
+        button.setAttribute("aria-label", completed || busy ? displayLabel : this.LangText("ダウンロード") + ": " + label);
         button.setAttribute("aria-busy", String(busy && !completed));
         button.disabled = busy || completed;
         if (completed) {
@@ -511,7 +531,13 @@ class NicoDownloaderClass {
     */
     ////////////////////////////////////////////////////////////////////////
     LangText(text) {
-        return this.Lang[this.LangSetting][text] || text;
+        const messages = this.Lang[this.LangSetting] || this.Lang.ja;
+        if (messages[text]) return messages[text];
+        // 数値付きの進捗も、先頭の状態名を選択言語にそろえる。
+        for (const key of ["変換中", "ダウンロード中"]) {
+            if (text.startsWith(key + " (")) return messages[key] + text.slice(key.length);
+        }
+        return text;
     }
 
     ////////////////////////////////////////////////////////////////////////
@@ -558,7 +584,7 @@ class NicoDownloaderClass {
     CheckBeforeDownload() {
         //MainVideoPlayerが読み込めるかどうかを判別する
         if (!this.CheckMainVideoPlayer()) {
-            this.ButtonTextWrite('MainVideoPlayerが読み込めません');//ボタンの文字を変更
+            this.ButtonTextWrite('動画プレイヤーを読み込めません');//ボタンの文字を変更
             return false;
         }
         //SystemMessageが読み込めるかどうかを判別する
@@ -707,13 +733,13 @@ class NicoDownloaderClass {
         const content = document.getElementById(VideoData.Video_DLlink.a);
         if (!wrapper || wrapper.dataset.ndlVideoId !== videoId || !content || !IsShortVideoPage()) return;
         const old = content.querySelector("button");
-        if (old?.dataset.ndlReload === "1") return;
+        if (old?.dataset.ndlReload === "1" && old.textContent === this.LangText("Reloadする")) return;
         clearTimeout(old?._ndlStartTimer);
         if (old) delete old.dataset.ndlStartPending;
         const button = document.createElement("button");
         button.type = "button";
-        button.textContent = "Reloadする";
-        button.title = "親m3u8を取得できませんでした。ページを再読み込みします。";
+        button.textContent = this.LangText("Reloadする");
+        button.title = this.LangText("親m3u8を取得できませんでした。ページを再読み込みします。");
         button.setAttribute("aria-label", button.title);
         button.dataset.ndlReload = "1";
         button.style.cssText = "display:inline-flex;align-items:center;justify-content:center;min-width:88px;min-height:40px;padding:8px;border:0;border-radius:20px;background:var(--colors-action-base,#333);color:var(--colors-action-text-on-base,#fff);font-size:12px;font-weight:bold;cursor:pointer";

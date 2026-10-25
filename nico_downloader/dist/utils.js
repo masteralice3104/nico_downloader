@@ -929,6 +929,6 @@ function parseFFmpegProgress(output, NicoDownloader) {
 
   // 進捗パーセンテージを推定してボタンに表示
   if (frameMatch || timeMatch) {
-    NicoDownloader.ButtonTextWrite(`変換中 (${timeMatch ? timeMatch[1] : 'フレーム ' + frameMatch[1]})`);
+    NicoDownloader.ButtonTextWrite(`変換中 (${timeMatch ? timeMatch[1] : NicoDownloader.LangText("フレーム") + " " + frameMatch[1]})`);
   }
 }

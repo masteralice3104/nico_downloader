@@ -4,7 +4,7 @@
 
 **現行リリース：5.1.0.0（2026-10-25）**
 
-[Chrome Webストア](https://chromewebstore.google.com/detail/nico-downloader/dncjcadpoakefjpnabimpalenliehbig) · [GitHub Release・配布ZIP](https://github.com/masteralice3104/nico_downloader/releases/tag/5.1.0.0) · [詳しい使い方・Wiki](https://github.com/masteralice3104/nico_downloader/wiki) · [Issueを作る！](https://github.com/masteralice3104/nico_downloader/issues/new)
+[Chrome Webストア](https://chromewebstore.google.com/detail/nico-downloader/dncjcadpoakefjpnabimpalenliehbig) · [GitHub Release・配布ZIP](https://github.com/masteralice3104/nico_downloader/releases/tag/5.1.0.0) · [詳しい使い方・Wiki](https://github.com/masteralice3104/nico_downloader/wiki) · [掲示板・質問と相談](https://github.com/masteralice3104/nico_downloader/discussions) · [Issueを作る！](https://github.com/masteralice3104/nico_downloader/issues/new)
 
 このREADMEとWikiは5.1.0.0の実装を説明しています。Chrome Webストアへの公開時期はGitHub Releaseと異なる場合があります。
 
@@ -60,7 +60,7 @@ GitHub配布版を使う場合は、ReleaseのAssetsにある **`nico_downloader
 | --- | --- |
 | [ホーム](https://github.com/masteralice3104/nico_downloader/wiki) | 5.1.0.0の概要と案内 |
 | [使い方](https://github.com/masteralice3104/nico_downloader/wiki/使い方) | 導入、更新、通常動画・ショートの保存 |
-| [設定項目](https://github.com/masteralice3104/nico_downloader/wiki/設定項目) | ファイル名、コメント、メタタグ、表示、詳細設定 |
+| [設定項目](https://github.com/masteralice3104/nico_downloader/wiki/設定項目) | ファイル名、コメント、メタタグ、表示 |
 | [困ったときは](https://github.com/masteralice3104/nico_downloader/wiki/困ったときは) | Reload、通信・変換・保存エラー、確認項目、報告方法 |
 
 ## 動作環境と制限
@@ -76,16 +76,31 @@ GitHub配布版を使う場合は、ReleaseのAssetsにある **`nico_downloader
 - 長時間・大容量の動画は、メモリ不足で保存できない場合があります。軽量化は容量無制限を保証するものではありません。
 - 同梱する単一スレッド版`@ffmpeg/core 0.12.10`はFFmpeg 5.1.4ベースです。WASMの初期メモリは32MiB、最大は2GiBで、ブラウザー全体の使用量はこれを超える場合があります。
 - 画質選択の設定はありません。ページで取得したプレイリストに従います。
-- **プロフェッショナル設定（ここの設定についてはサポートしません）。** 通常は変更不要です。
+- **プロフェッショナル設定（ここの設定についてはサポートしません）。**
 - 同梱Coreのライセンス・配布元・ソース案内は[LICENSE](nico_downloader/LICENSE)に記載しています。
+
+## 開発・サポート方針
+
+nico downloaderは、ソースコードを公開している個人開発ソフトです。開発方針・仕様・変更の採否・公開・更新停止の最終判断は、すべて開発者が行います。
+
+- 機能の採否・実装方法・優先順位は、**開発者の判断で決めます。**
+- 対象外環境の質問も受け付けますが、回答・修正・動作は保証しません。
+- Chrome拡張機能の審査への影響を考慮し、追加権限・外部サーバーはできるだけ増やしません。
+- 不具合の調査・修正は原則として最新公開版を対象とし、旧版ではまず更新を案内します。
+- 不具合を再現できれば対処します。再現できない場合は追加情報を求めます。
+- 回答・修正・更新の期限は一切約束しません。対応しない判断や更新停止も開発者が決めます。
+
+詳しくは[Wikiの開発・サポート方針](https://github.com/masteralice3104/nico_downloader/wiki/開発・サポート方針)を確認してください。
 
 ## 感想・不具合の報告
 
 開発者はTwitterで「nico downloader」をエゴサしています。**ぜひ「nico downloader」を含めてツイートしてください！** 感想や使用報告をお待ちしています。
 
-不具合や要望は[Issueを作成してください](https://github.com/masteralice3104/nico_downloader/issues/new)。設定画面の最上部にも「Issueを作る！」ボタンがあります。バージョン、通常動画／ショート、再現手順、期待した結果、最後のログを日本語で記載してください。署名付きURLのクエリやCookieなどの認証情報は伏せてください。
+使い方の質問・相談・改善アイデア・使用報告は[Discussions（掲示板）](https://github.com/masteralice3104/nico_downloader/discussions)へお願いします。
 
-コード変更の提案はPull Requestで受け付けています。
+不具合の報告は[Issueを作成してください](https://github.com/masteralice3104/nico_downloader/issues/new)。設定画面の最上部にも「Issueを作る！」ボタンがあります。バージョン、通常動画／ショート、再現手順、期待した結果、最後のログを日本語で記載してください。署名付きURLのクエリやCookieなどの認証情報は伏せてください。
+
+**確認・レビューに手間がかかりすぎるため、大規模なPull Requestは受け付けません。** 大規模な一括書き換えや複数の独立した変更をまとめたPRは避け、修正・追加の目的ごとに小さく分けて提案してください。各PRは開発者が個別に確認し、取り込むかを判断します。採用・回答・レビュー期限は保証しません。
 
 ## リリースノート
 
@@ -93,6 +108,12 @@ GitHub配布版を使う場合は、ReleaseのAssetsにある **`nico_downloader
 
 <details>
 <summary>過去のリリースノート</summary>
+
+### 開発中（未公開）
+
+- プロフェッショナル設定の項目説明と操作案内をドキュメント・設定画面から削除し、従来のサポート対象外の注意書きを維持。
+- README・Wiki・設定画面にDiscussionsへの案内を追加し、不具合報告と質問・相談の投稿先を整理。
+- 動画プレイヤーのエラー表示と読み込み・メタタグの用語を統一。English設定の開始待ち・進捗・保存終了・再読み込みボタン・右クリック設定を翻訳。
 
 ### 5.1.0.0 — 2026-10-25
 
@@ -108,12 +129,12 @@ GitHub配布版を使う場合は、ReleaseのAssetsにある **`nico_downloader
 
 #### 改善
 
-- 設定画面を刷新。使い方の確認チェック、ライト／ダーク表示、狭い画面、折りたたみのプロフェッショナル設定に対応。
+- 設定画面を刷新。使い方の確認チェック、ライト／ダーク表示、狭い画面に対応。
 - 公式単一スレッド版`@ffmpeg/core 0.12.10`（FFmpeg 5.1.4）へ更新し、終了コード・完了待ち・失敗時の状態解除を整理。
 - AACは音声だけを取得。入力コピーと中間Blobを削減し、MP4出力は4MiBの固定長ブロックで保持。
 - 安全な条件で読み終えたMP4断片を解放。再参照を検知した場合は必要な断片を戻し、一度だけ早期解放なしで再変換。
 - MP4の標準メタタグとWindows互換情報、AACのID3v2、再生数・コメント数・マイリスト数・いいね数の独自タグに対応。
-- 設定を一括読み込み・変更通知で管理。処理開始時に形式・名前構成を固定し、変換直前に同じページのメタデータを補完。
+- 設定を一括読み込み・変更通知で管理。処理開始時に形式・名前構成を固定し、変換直前に同じページのメタタグを補完。
 - 基本・カスタム保存名の禁止文字・予約名・長さ制限を統一し、タイトルによるボタンの表示崩れを防止。
 
 #### 修正
