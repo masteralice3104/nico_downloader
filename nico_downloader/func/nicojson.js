@@ -1,3 +1,96 @@
+(function () {
+// ページ側では通信の複製だけを担当し、保存と設定の判断は拡張側で行う。
+(() => {
+    if (globalThis.chrome?.runtime?.id) return;
+    const channel = "nico-downloader-comments-v1";
+    let enabled = false;
+    let client = "";
+    let revision = 0;
+    const route = () => location.pathname.match(/^\/watch\/([^/?#]+)\/?$/)?.[1] || "";
+    const post = (data) => window.postMessage({ channel, client, ...data }, location.origin);
+    window.addEventListener("message", (event) => {
+        const data = event.data;
+        if (event.source !== window || event.origin !== location.origin || data?.channel !== channel || data.type !== "configure") return;
+        if (typeof data.client !== "string") return;
+        enabled = data.enabled === true;
+        client = data.client;
+        revision++;
+    });
+    const matches = (url, method) => {
+        try {
+            const parsed = new URL(url, location.href);
+            return method.toUpperCase() === "POST" && parsed.origin === "https://public.nvcomment.nicovideo.jp" &&
+                parsed.pathname === "/v1/threads" && parsed.searchParams.get("pc") === "1";
+        } catch { return false; }
+    };
+    const context = () => enabled && route() ? { videoId: route(), revision, client } : null;
+    const active = (ctx) => ctx && enabled && ctx.revision === revision && ctx.videoId === route();
+    async function receive(ctx, readResponse, status) {
+        if (!active(ctx)) return;
+        try {
+            if (status < 200 || status >= 300) throw new Error("HTTP " + status);
+            const text = await readResponse();
+            if (!active(ctx)) return;
+            const json = JSON.parse(text);
+            if (!Array.isArray(json?.data?.threads) || (json.meta?.status != null && json.meta.status !== 200)) throw new Error("コメントJSONの形式が不正です");
+            // レスポンスと取得時の動画番号だけを渡す。リクエスト本文は読まない。
+            post({ type: "response", videoId: ctx.videoId, text });
+        } catch (error) {
+            if (active(ctx)) post({ type: "error", videoId: ctx.videoId, message: String(error.message) });
+        }
+    }
+    const originalFetch = window.fetch;
+    window.fetch = function (input, init) {
+        const ctx = context();
+        let capture = false;
+        try {
+            const isRequest = typeof Request !== "undefined" && input instanceof Request;
+            capture = ctx && matches(isRequest ? input.url : input, String(init?.method ?? (isRequest ? input.method : "GET")));
+        } catch { capture = false; }
+        const result = Reflect.apply(originalFetch, this, arguments);
+        try {
+            if (capture) {
+                result.then((response) => {
+                    if (!active(ctx)) return;
+                    const copy = response.clone();
+                    return receive(ctx, () => copy.text(), response.status);
+                }).catch(() => {
+                    if (active(ctx)) post({ type: "error", videoId: ctx.videoId, message: "fetch通信に失敗しました" });
+                });
+            }
+        } catch { /* ページのfetchの戻り値・例外を変更しない。 */ }
+        return result;
+    };
+    const requests = new WeakMap();
+    const originalOpen = XMLHttpRequest.prototype.open;
+    const originalSend = XMLHttpRequest.prototype.send;
+    XMLHttpRequest.prototype.open = function (method, url) {
+        const result = Reflect.apply(originalOpen, this, arguments);
+        requests.set(this, { method: String(method), url });
+        return result;
+    };
+    XMLHttpRequest.prototype.send = function (body) {
+        const request = requests.get(this);
+        const ctx = context();
+        if (ctx && request && matches(request.url, request.method)) {
+            const finish = () => {
+                this.removeEventListener("loadend", finish);
+                if (requests.get(this) !== request || !active(ctx)) return;
+                try {
+                    const text = this.responseType === "json" ? JSON.stringify(this.response) : this.responseText;
+                    receive(ctx, () => text, this.status);
+                } catch { post({ type: "error", videoId: ctx.videoId, message: "XHRレスポンスを読み取れませんでした" }); }
+            };
+            this.addEventListener("loadend", finish);
+            try { return Reflect.apply(originalSend, this, arguments); }
+            catch (error) { this.removeEventListener("loadend", finish); throw error; }
+        }
+        return Reflect.apply(originalSend, this, arguments);
+    };
+    post({ type: "ready" });
+})();
+
+if (!globalThis.chrome?.runtime?.id) return;
 // Description: ニコニコ動画のjsonを取得し中身のデータを抽出する関数をまとめたクラスです。
 //使い方
 /*
@@ -238,3 +331,6 @@ class NicovideoClass {
 
 
 }
+
+globalThis.NicovideoClass = NicovideoClass;
+})();

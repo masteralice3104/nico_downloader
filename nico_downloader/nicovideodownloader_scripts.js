@@ -13,7 +13,9 @@ async function VideoDown() {
     if (NicoDownloader.VideoDownloadingCheck()) return false;
 
     // ダウンロードリンクをクリック
+    const videoSavePending = document.getElementById(VideoData.Video_DLlink.a2) !== null;
     NicoDownloader.DownloadLinkClick();
+    if (videoSavePending) globalThis.NicoCommentJSON?.save();
 
     // ショートはボタンを押した動画だけを開始する。保存リンクの処理は従来どおり。
     const shortId = ShortVideoId();
@@ -86,7 +88,10 @@ async function VideoDown() {
     if (!masterURL || !masterURL.includes("delivery.domand.nicovideo.jp")) return false;
     try {
         const completed = await MovieDownload_domand(Nicovideo, NicoDownloader);
-        if (completed) NicoDownloader.VideoLoadedSMIDSet(Nicovideo.video_sm);
+        if (completed) {
+            globalThis.NicoCommentJSON?.prepare(Nicovideo);
+            NicoDownloader.VideoLoadedSMIDSet(Nicovideo.video_sm);
+        }
         return completed;
     } catch (error) {
         console.error("ダウンロード処理に失敗しました:", error);

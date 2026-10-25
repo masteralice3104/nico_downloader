@@ -32,8 +32,26 @@
                 "https://www.nicovideo.jp/*"
             ],
             "js": [
+                "func/nicojson.js"
+            ],
+            "run_at": "document_start",
+            "world": "MAIN"
+        },
+        {
+            "matches": [
+                "https://www.nicovideo.jp/*"
+            ],
+            "js": [
+                "options.js"
+            ],
+            "run_at": "document_start"
+        },
+        {
+            "matches": [
+                "https://www.nicovideo.jp/*"
+            ],
+            "js": [
                 "nicovideodownloader_scripts.js",
-                "options.js",
                 "dist/ffmpeg-core2.js",
                 "dist/utils.js",
                 "func/nicojson.js",

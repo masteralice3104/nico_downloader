@@ -149,3 +149,94 @@ function BuildVideoFilename(parts, video, extension) {
     const safeName = /^(?:con|prn|aux|nul|com[1-9]|lpt[1-9])(?:\.|$)/i.test(name) ? "_" + name : name;
     return safeName + "." + extension;
 }
+
+// 通常動画のコメント保存。無効な間はレスポンスを保持しない。
+(() => {
+    if (location.origin !== "https://www.nicovideo.jp" || !globalThis.chrome?.runtime?.id) return;
+    const channel = "nico-downloader-comments-v1";
+    const client = crypto.randomUUID();
+    let enabled = false;
+    let settingsRevision = 0;
+    const cache = new Map();
+    let pending = null;
+    const configure = () => window.postMessage({ channel, type: "configure", client, enabled }, location.origin);
+    const apply = (value) => {
+        enabled = value === "1";
+        cache.clear();
+        pending = null;
+        configure();
+    };
+    window.addEventListener("message", (event) => {
+        const data = event.data;
+        if (event.source !== window || event.origin !== location.origin || data?.channel !== channel) return;
+        if (data.type === "ready") { configure(); return; }
+        if (!enabled || data.client !== client || data.videoId !== location.pathname.match(/^\/watch\/([^/?#]+)\/?$/)?.[1]) return;
+        if (data.type === "error") {
+            console.warn("[nico downloader] コメントJSON取得失敗:", String(data.message));
+            return;
+        }
+        if (data.type !== "response" || typeof data.text !== "string") return;
+        try {
+            const json = JSON.parse(data.text);
+            if (!Array.isArray(json?.data?.threads) || (json.meta?.status != null && json.meta.status !== 200)) {
+                console.warn("[nico downloader] コメントJSON受信検証失敗: レスポンス形式が不正です");
+                return;
+            }
+            // 通常動画だけを対象に、取得時の動画番号で最新のJSONを保持する。
+            cache.delete(data.videoId);
+            cache.set(data.videoId, data.text);
+            // SPAで別の動画へ移動しても、際限なくコメントを保持しない。
+            while (cache.size > 4) cache.delete(cache.keys().next().value);
+            console.info("[nico downloader] コメントJSON取得成功:", data.videoId);
+        } catch { console.warn("[nico downloader] コメントJSONの読み取りに失敗しました"); }
+    });
+    chrome.storage.onChanged.addListener((changes, area) => {
+        if (area === "local" && changes.save_comments_json) {
+            settingsRevision++;
+            apply(changes.save_comments_json.newValue);
+        }
+    });
+    const initialRevision = settingsRevision;
+    chrome.storage.local.get({ save_comments_json: "0" }, (value) => {
+        if (!chrome.runtime.lastError && initialRevision === settingsRevision) apply(value.save_comments_json);
+    });
+    globalThis.NicoCommentJSON = {
+        prepare(video) {
+            pending = null;
+            if (!enabled || /^ss[0-9]+$/.test(video.video_sm)) return;
+            pending = {
+                videoId: video.video_sm,
+                text: cache.get(video.video_sm),
+                filename: video.video_name.replace(/\.(?:mp4|aac)$/i, "") + ".json",
+            };
+        },
+        save() {
+            const entry = pending;
+            pending = null;
+            if (!enabled || !entry) return;
+            // 変換完了直後から従来の保存リンクをクリックするまでの受信も拾う。
+            entry.text ??= cache.get(entry.videoId);
+            if (!entry.text) {
+                console.warn("[nico downloader] コメントJSON保存を見送りました: この動画のコメントJSONをまだ受信していません", { videoId: entry.videoId });
+                return;
+            }
+            let url;
+            let link;
+            try {
+                url = URL.createObjectURL(new Blob([entry.text], { type: "application/json;charset=utf-8" }));
+                link = document.createElement("a");
+                link.hidden = true;
+                link.href = url;
+                link.download = entry.filename;
+                document.body.appendChild(link);
+                link.click();
+                console.info("[nico downloader] コメントJSON保存要求:", entry.filename);
+            } catch (error) {
+                console.error("[nico downloader] コメントJSON保存失敗:", error);
+            } finally {
+                link?.remove();
+                if (url) setTimeout(() => URL.revokeObjectURL(url), 60000);
+            }
+        },
+    };
+})();

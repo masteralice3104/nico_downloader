@@ -1,6 +1,7 @@
 // 設定画面専用。保存キーと保存名の生成処理は動画ページと共通。
 const optionDefaults = {
     video_downloading: "0",
+    save_comments_json: "0",
     video_filename_mode: "default",
     video_filename_part_1: "uploader",
     video_filename_part_2: "title",
