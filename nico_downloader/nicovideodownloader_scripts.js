@@ -35,11 +35,14 @@ async function VideoDown() {
         await Nicovideo.SetAllFromVideoSm(Nicovideo.video_sm);
     } catch (error) {
         DebugPrint("Video metadata could not be loaded: " + error);
+        console.warn("[nico downloader] 動画情報の取得失敗:", error);
     }
     if (Nicovideo.video_title == "") {
         Nicovideo.video_title = Nicovideo.GetPageTitle() || Nicovideo.video_sm;
         DebugPrint("Using fallback video title: " + Nicovideo.video_title);
     }
+
+    Nicovideo.CompletePageMetadata?.();
 
     // デフォルト動画ファイル名の定義
     const filenameSettings = await filenameSettingsGet();

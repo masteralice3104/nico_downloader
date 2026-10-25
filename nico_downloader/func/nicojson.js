@@ -110,6 +110,7 @@ nicovideo.SetAllFromVideoSm('sm9').then(() => {
 
 // 残さねばならない変数
 let Nicovideo______Ndl______DataLoadedSMID = '-1'; // データを取得した動画のsmid
+const metadataWarnings = new Set();
 let Nicovideo______Ndl______DataLoadedJSON = {}; // JSONデータ   
 
 class NicovideoClass {
@@ -123,6 +124,7 @@ class NicovideoClass {
         this.comment_count = 0; // コメント数
         this.mylist_count = 0; // マイリスト数
         this.like_count = 0; // いいね数
+        this.page_counts = {}; // 同じ動画IDのページ情報から補完した件数
         this.video_title = ''; // タイトル
         this.video_owner = ''; // 投稿ユーザー
         this.video_registeredAt = ''; // 登録日時
@@ -182,7 +184,11 @@ class NicovideoClass {
     async DownloadJson(video_sm = this.video_sm) {
         if (video_sm == '') return false;
         const url = this.NicoVideoWatchURL + video_sm + '?responseType=json';
-        return fetch(url).then(response => response.json());
+        const response = await fetch(url);
+        if (!response.ok) throw new Error("動画情報の取得に失敗しました: HTTP " + response.status);
+        const json = await response.json();
+        if (Number(json?.meta?.status) >= 400) throw new Error("動画情報APIエラー: " + json.meta.status);
+        return json;
     }
     //jsonをセット
     SetJson(json) {
@@ -228,12 +234,34 @@ class NicovideoClass {
 
     //旧レスポンス形式とwatchV4形式の両方から動画情報を取得
     GetWatchData(json = this.json) {
-        const response = json?.data?.response;
-        return response?.$watchV4?.data ?? response ?? {};
+        const response = json?.data?.response ?? json?.data ?? {};
+        const v4 = response.$watchV4?.data ?? {};
+        // watchV4の部分データで、外側にある動画情報を捨てない。
+        const merge = (base, preferred) => {
+            const result = { ...base };
+            for (const [key, value] of Object.entries(preferred ?? {})) {
+                if (value != null && value !== "" && (!Array.isArray(value) || value.length)) result[key] = value;
+            }
+            return result;
+        };
+        const result = merge(response, v4);
+        for (const key of ["video", "owner", "channel", "genre", "series", "tag", "tags", "metadata"]) {
+            result[key] = merge(response[key], v4[key]);
+        }
+        return result;
     }
 
     GetVideo(json = this.json) {
-        return this.GetWatchData(json).video ?? {};
+        const video = this.GetWatchData(json).video ?? {};
+        const response = json?.data?.response ?? json?.data ?? {};
+        const count = { ...this.page_counts };
+        for (const [key, value] of Object.entries(response.video?.count ?? {})) {
+            if (value != null && value !== "") count[key] = value;
+        }
+        for (const [key, value] of Object.entries(video.count ?? {})) {
+            if (value != null && value !== "") count[key] = value;
+        }
+        return { ...video, count };
     }
 
     GetShortVideoTitle() {
@@ -295,8 +323,9 @@ class NicovideoClass {
     }
     //jsonより投稿ユーザー名を取得
     JsonToUser(json = this.json) {
-        const response = json?.data?.response;
-        return response?.owner?.nickname ?? this.GetWatchData(json).metadata?.jsonLd?.owner?.name ?? ""; // 投稿ユーザー名
+        const data = this.GetWatchData(json);
+        return [data.owner?.nickname, data.channel?.name, data.metadata?.jsonLd?.owner?.name]
+            .find(value => typeof value === "string" && value.trim()) ?? ""; // 投稿ユーザー名
     }
     //jsonより説明文を取得
     JsonToDescription(json = this.json) {
@@ -305,9 +334,9 @@ class NicovideoClass {
 
     //jsonよりタグを取得
     JsonToTags(json = this.json) {
-        const response = json?.data?.response;
-        const items = this.GetWatchData(json).tags?.items ?? response?.tag?.items ?? [];
-        return items.map(tag => tag.name);
+        const data = this.GetWatchData(json);
+        const items = data.tags?.items?.length ? data.tags.items : data.tag?.items ?? [];
+        return items.map(tag => tag.name).filter(value => typeof value === "string" && value.trim());
     }
 
     //jsonよりジャンルを取得
@@ -317,7 +346,68 @@ class NicovideoClass {
 
     //jsonよりシリーズを取得
     JsonToSeries(json = this.json) {
-        return json?.data?.response?.series?.title ?? ""; // シリーズ
+        return this.GetWatchData(json).series?.title ?? ""; // シリーズ
+    }
+
+    // 追加通信はせず、同じ動画IDの埋め込み情報から欠けた項目だけ補う。
+    CompletePageMetadata() {
+        if (/^ss[0-9]+$/.test(this.video_sm)) return;
+        const getters = { video_title: "JsonToTitle", video_owner: "JsonToUser", video_registeredAt: "JsonToRegisteredAt",
+            video_description: "JsonToDescription", video_tags: "JsonToTags", video_genre: "JsonToGenre", video_series: "JsonToSeries" };
+        const empty = value => value == null || value === "" || (Array.isArray(value) && !value.length);
+        const apply = values => {
+            for (const [key, value] of Object.entries(values)) {
+                const safe = key === "video_tags" ? (Array.isArray(value) ? value.filter(tag => typeof tag === "string" && tag.trim()) : []) : typeof value === "string" && value.trim() ? value : "";
+                if (empty(this[key]) && !empty(safe)) this[key] = safe;
+            }
+        };
+        for (const element of document.querySelectorAll('meta[name="server-response"], #js-initial-watch-data[data-api-data]')) {
+            try {
+                const json = JSON.parse(element.getAttribute("content") ?? element.getAttribute("data-api-data"));
+                const data = this.GetWatchData(json);
+                if ((data.video?.id ?? data.client?.watchId) !== this.video_sm) continue;
+                for (const key of ["view", "comment", "mylist", "like"]) {
+                    const value = this.GetVideo(json).count[key];
+                    if (this.GetVideo().count[key] == null && value != null && value !== "") this.page_counts[key] = value;
+                }
+                apply(Object.fromEntries(Object.entries(getters).map(([key, getter]) => [key, this[getter](json)])));
+            } catch { /* 未解析のページデータは実行せず無視する。 */ }
+        }
+        const ldSources = [...document.querySelectorAll('script[type="application/ld+json"]')].map(element => element.textContent);
+        const embeddedLD = this.GetWatchData().metadata?.jsonLd;
+        if (embeddedLD) ldSources.push(embeddedLD);
+        for (const source of ldSources) {
+            try {
+                const json = typeof source === "string" ? JSON.parse(source) : source;
+                const objects = Array.isArray(json) ? json : json["@graph"] ?? [json];
+                for (const value of objects) {
+                    if (![value?.["@type"]].flat().includes("VideoObject")) continue;
+                    const urls = [value.url, value["@id"], value.mainEntityOfPage?.["@id"], value.mainEntityOfPage];
+                    const matches = value.identifier === this.video_sm || urls.some(address => {
+                        if (typeof address !== "string") return false;
+                        try { const url = new URL(address, location.origin); return url.origin === location.origin && url.pathname === "/watch/" + this.video_sm; }
+                        catch { return false; }
+                    });
+                    if (!matches) continue;
+                    const author = Array.isArray(value.author) ? value.author[0] : value.author;
+                    const tags = Array.isArray(value.keywords) ? value.keywords : typeof value.keywords === "string" ? value.keywords.split(",").map(tag => tag.trim()).filter(Boolean) : [];
+                    apply({ video_title: value.name, video_owner: author?.name, video_description: value.description,
+                        video_registeredAt: value.uploadDate ?? value.datePublished, video_tags: tags });
+                }
+            } catch { /* 形式や動画IDを確認できない情報は使用しない。 */ }
+        }
+        const missing = Object.keys(getters).filter(key => empty(this[key]));
+        const warning = this.video_sm + ":" + missing.join(",");
+        if (missing.length && !metadataWarnings.has(warning)) {
+            if (metadataWarnings.size >= 8) metadataWarnings.delete(metadataWarnings.values().next().value);
+            metadataWarnings.add(warning);
+            const response = this.json?.data?.response;
+            console.warn("[nico downloader] メタデータ未取得:", { videoId: this.video_sm, missing,
+                rootKeys: Object.keys(this.json ?? {}), responseKeys: Object.keys(response ?? {}),
+                watchV4Keys: Object.keys(response?.$watchV4?.data ?? {}),
+                watchV4MetadataKeys: Object.keys(response?.$watchV4?.data?.metadata ?? {}),
+                videoKeys: Object.keys(this.GetVideo()) });
+        }
     }
 
     //変数の中身が適正なデータかチェックする関数
