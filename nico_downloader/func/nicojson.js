@@ -6,7 +6,8 @@
     let enabled = false;
     let client = "";
     let revision = 0;
-    const route = () => location.pathname.match(/^\/watch\/([^/?#]+)\/?$/)?.[1] || "";
+    let requestOrder = 0;
+    const route = () => location.pathname.match(/^\/(?:watch|shorts)\/([^/?#]+)\/?$/)?.[1] || "";
     const post = (data) => window.postMessage({ channel, client, ...data }, location.origin);
     window.addEventListener("message", (event) => {
         const data = event.data;
@@ -23,7 +24,7 @@
                 parsed.pathname === "/v1/threads" && parsed.searchParams.get("pc") === "1";
         } catch { return false; }
     };
-    const context = () => enabled && route() ? { videoId: route(), revision, client } : null;
+    const context = () => enabled && route() ? { videoId: route(), revision, client, requestOrder: ++requestOrder } : null;
     const active = (ctx) => ctx && enabled && ctx.revision === revision && ctx.videoId === route();
     async function receive(ctx, readResponse, status) {
         if (!active(ctx)) return;
@@ -34,7 +35,7 @@
             const json = JSON.parse(text);
             if (!Array.isArray(json?.data?.threads) || (json.meta?.status != null && json.meta.status !== 200)) throw new Error("コメントJSONの形式が不正です");
             // レスポンスと取得時の動画番号だけを渡す。リクエスト本文は読まない。
-            post({ type: "response", videoId: ctx.videoId, text });
+            post({ type: "response", videoId: ctx.videoId, requestOrder: ctx.requestOrder, text });
         } catch (error) {
             if (active(ctx)) post({ type: "error", videoId: ctx.videoId, message: String(error.message) });
         }
@@ -50,6 +51,7 @@
         const result = Reflect.apply(originalFetch, this, arguments);
         try {
             if (capture) {
+                post({ type: "request", videoId: ctx.videoId, requestOrder: ctx.requestOrder });
                 result.then((response) => {
                     if (!active(ctx)) return;
                     const copy = response.clone();
@@ -73,6 +75,7 @@
         const request = requests.get(this);
         const ctx = context();
         if (ctx && request && matches(request.url, request.method)) {
+            post({ type: "request", videoId: ctx.videoId, requestOrder: ctx.requestOrder });
             const finish = () => {
                 this.removeEventListener("loadend", finish);
                 if (requests.get(this) !== request || !active(ctx)) return;

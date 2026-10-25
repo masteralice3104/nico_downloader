@@ -56,7 +56,7 @@ async function VideoDown() {
     Nicovideo.video_name = video_name;
 
     // 情報取得中にページが切り替わった場合、古い動画のボタンを描画しない。
-    if (!Nicovideo.CheckNicovideoWatchURL() ||
+    if (failedDownloadId === Nicovideo.video_sm || !Nicovideo.CheckNicovideoWatchURL() ||
         Nicovideo.VideoSmGet(NicoDownloader.MatchingSMIDArray) !== Nicovideo.video_sm) return false;
 
     // すでに作ったリンクがあるかどうか判別し、あれば削除
@@ -578,6 +578,11 @@ class DomandPlaylistCapture {
                 this.requested = candidate;
                 console.log("[nico downloader] ショート保存対象:", route, candidate.url);
             } else if (button?.isConnected) {
+                // URL確認中に無効化したボタンを、従来経路へ渡す前に戻す。
+                delete button.dataset.ndlStartPending;
+                clearTimeout(button._ndlStartTimer);
+                delete button._ndlStartTimer;
+                button.disabled = false;
                 button.click(); // 確認が全て失敗した場合も、従来のメニュー取得へ自動で進む。
             }
             return;

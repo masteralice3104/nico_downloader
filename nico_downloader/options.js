@@ -150,7 +150,7 @@ function BuildVideoFilename(parts, video, extension) {
     return safeName + "." + extension;
 }
 
-// 通常動画のコメント保存。無効な間はレスポンスを保持しない。
+// 通常動画・ショートのコメント保存。無効な間はレスポンスを保持しない。
 (() => {
     if (location.origin !== "https://www.nicovideo.jp" || !globalThis.chrome?.runtime?.id) return;
     const channel = "nico-downloader-comments-v1";
@@ -158,11 +158,13 @@ function BuildVideoFilename(parts, video, extension) {
     let enabled = false;
     let settingsRevision = 0;
     const cache = new Map();
+    const firstShortRequests = new Map();
     let pending = null;
     const configure = () => window.postMessage({ channel, type: "configure", client, enabled }, location.origin);
     const apply = (value) => {
         enabled = value === "1";
         cache.clear();
+        firstShortRequests.clear();
         pending = null;
         configure();
     };
@@ -170,7 +172,13 @@ function BuildVideoFilename(parts, video, extension) {
         const data = event.data;
         if (event.source !== window || event.origin !== location.origin || data?.channel !== channel) return;
         if (data.type === "ready") { configure(); return; }
-        if (!enabled || data.client !== client || data.videoId !== location.pathname.match(/^\/watch\/([^/?#]+)\/?$/)?.[1]) return;
+        if (!enabled || data.client !== client || data.videoId !== location.pathname.match(/^\/(?:watch|shorts)\/([^/?#]+)\/?$/)?.[1]) return;
+        if (data.type === "request" && /^ss[0-9]+$/.test(data.videoId)) {
+            if (!Number.isSafeInteger(data.requestOrder) || data.requestOrder < 1) return;
+            if (!firstShortRequests.has(data.videoId)) firstShortRequests.set(data.videoId, data.requestOrder);
+            while (firstShortRequests.size > 4) firstShortRequests.delete(firstShortRequests.keys().next().value);
+            return;
+        }
         if (data.type === "error") {
             console.warn("[nico downloader] コメントJSON取得失敗:", String(data.message));
             return;
@@ -182,9 +190,21 @@ function BuildVideoFilename(parts, video, extension) {
                 console.warn("[nico downloader] コメントJSON受信検証失敗: レスポンス形式が不正です");
                 return;
             }
-            // 通常動画だけを対象に、取得時の動画番号で最新のJSONを保持する。
+            if (!Number.isSafeInteger(data.requestOrder) || data.requestOrder < 1) return;
+            const previous = cache.get(data.videoId);
+            const short = /^ss[0-9]+$/.test(data.videoId);
+            if (short && firstShortRequests.get(data.videoId) !== data.requestOrder) {
+                console.info("[nico downloader] コメントJSON先読み除外:", data.videoId);
+                return;
+            }
+            // ショートは次の動画を先読みするため、最初に要求されたJSONを選ぶ。
+            // 応答の完了順が逆転しても、先読みの応答へ置き換えない。
+            if (previous && (short ? data.requestOrder >= previous.requestOrder : data.requestOrder < previous.requestOrder)) {
+                if (short) console.info("[nico downloader] コメントJSON先読み除外:", data.videoId);
+                return;
+            }
             cache.delete(data.videoId);
-            cache.set(data.videoId, data.text);
+            cache.set(data.videoId, { text: data.text, requestOrder: data.requestOrder });
             // SPAで別の動画へ移動しても、際限なくコメントを保持しない。
             while (cache.size > 4) cache.delete(cache.keys().next().value);
             console.info("[nico downloader] コメントJSON取得成功:", data.videoId);
@@ -203,10 +223,10 @@ function BuildVideoFilename(parts, video, extension) {
     globalThis.NicoCommentJSON = {
         prepare(video) {
             pending = null;
-            if (!enabled || /^ss[0-9]+$/.test(video.video_sm)) return;
+            if (!enabled) return;
             pending = {
                 videoId: video.video_sm,
-                text: cache.get(video.video_sm),
+                text: cache.get(video.video_sm)?.text,
                 filename: video.video_name.replace(/\.(?:mp4|aac)$/i, "") + ".json",
             };
         },
@@ -215,7 +235,7 @@ function BuildVideoFilename(parts, video, extension) {
             pending = null;
             if (!enabled || !entry) return;
             // 変換完了直後から従来の保存リンクをクリックするまでの受信も拾う。
-            entry.text ??= cache.get(entry.videoId);
+            entry.text = cache.get(entry.videoId)?.text ?? entry.text;
             if (!entry.text) {
                 console.warn("[nico downloader] コメントJSON保存を見送りました: この動画のコメントJSONをまだ受信していません", { videoId: entry.videoId });
                 return;

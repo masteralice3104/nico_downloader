@@ -88,9 +88,14 @@ function FiletypeToMimetype(filetype) {
 
 function PrepareConvertedDownload(core, NicoDownloader, Nicovideo) {
   if (last_save_sm === Nicovideo.video_sm) return false;
-  const file = core.FS.readFile(NicoDownloader.FSOutputFileNameGet());
-  if (!file.byteLength) throw new Error("変換出力が空です。");
-  const blob = new Blob([file.buffer], { type: FiletypeToMimetype(NicoDownloader.CheckVideoFormat()) });
+  const outputName = NicoDownloader.FSOutputFileNameGet();
+  const size = core.FS.stat(outputName).size;
+  if (!size) throw new Error("変換出力が空です。");
+  // このCoreのMEMFSを参照し、readFileによる出力全体のコピーを省く。
+  // Blobは構築時に内容を取り込むため、直後に仮想ファイルを削除できる。
+  const node = core.FS.lookupPath(outputName).node;
+  const blob = new Blob([node.contents.subarray(0, size)], { type: FiletypeToMimetype(NicoDownloader.CheckVideoFormat()) });
+  core.FS.unlink(outputName);
   let link;
   let objectURL;
   try {
@@ -103,7 +108,6 @@ function PrepareConvertedDownload(core, NicoDownloader, Nicovideo) {
     link.download = Nicovideo.video_name;
     link.style.display = "none";
     document.body.click();
-    core.FS.unlink(NicoDownloader.FSOutputFileNameGet());
     NicoDownloader.ButtonTextWrite("まもなく保存完了");
     last_save_sm = Nicovideo.video_sm;
     return true;
@@ -111,6 +115,18 @@ function PrepareConvertedDownload(core, NicoDownloader, Nicovideo) {
     link?.remove();
     if (objectURL) URL.revokeObjectURL(objectURL);
     throw error;
+  }
+}
+
+// 入力・途中出力は成功時も失敗時も残さない。後始末の失敗で元のエラーを隠さない。
+function RemoveFFmpegFiles(core, filenames) {
+  for (const filename of filenames) {
+    if (typeof filename !== "string" || !filename) continue;
+    try {
+      if (core.FS.analyzePath(filename).exists) core.FS.unlink(filename);
+    } catch (error) {
+      console.warn("仮想ファイルの解放に失敗しました:", filename, error);
+    }
   }
 }
 
@@ -132,118 +148,131 @@ async function DownEncoder(NicoDownloader, m3u8s, Nicovideo) {
   NicoDownloader.DownloadPercentageReset(); //パーセンテージをリセット
 
   //https://github.com/naari3/nico-downloader-ffmpeg/blob/main/src/background.ts  //偉大なる@_naari_氏による協力に感謝いたします
-  
+
   console.log("=== FFmpeg初期化開始 ===");
-  
+
   const coreURL = chrome.runtime.getURL("dist/ffmpeg-core2.js");
   const wasmURL = chrome.runtime.getURL("dist/ffmpeg-core.wasm");
   const core = await createFFmpegCore({
     // 既存ファイル名のまま、拡張機能内のWASMだけを読み込む。
     mainScriptUrlOrBlob: coreURL + "#" + btoa(JSON.stringify({ wasmURL, workerURL: "" })),
   });
-  core.setLogger(({ message }) => {
-    const output = String(message);
-    DebugPrint(`FFMPEG: ${output}`);
-    parseFFmpegProgress(output, NicoDownloader);
-  });
-
-  //URLsを片っ端から処理
-  //落としてファイルシステムにいれていく
-  let promises = [];
-  const BATCH_SIZE = 10; // 同時ダウンロード数を10に設定
-
-  for (let i = 0; i < NicoDownloader.TSURLs.length; i++) {
-    const promise = new Promise((resolve, reject) => {
-      DownloadUint8Array(NicoDownloader.TSURLs[i], NicoDownloader).then(
-        (byte) => {
-          let filenumber = i + 1;
-
-          let filename = NicoDownloader.TSFilenames[i];
-          core.FS.writeFile(filename, byte);
-          DebugPrint("FSwrite:" + filename);
-
-          // メモリ解放のためにbyteを明示的にnullに設定
-          byte = null;
-
-          //ダウンロードパーセンテージを計算
-          const downpercentage =
-            (100 * filenumber) / NicoDownloader.TSURLs.length;
-          if (downpercentage > NicoDownloader.DownloadPercentageGet()) {
-            NicoDownloader.DownloadPercentageSet(downpercentage);
-          }
-
-          //ダウンロード中のテキストを書き換え
-          let text_dl =
-            NicoDownloader.LangText("ダウンロード中") +
-            "…… (" +
-            NicoDownloader.DownloadPercentageGet().toFixed(1) +
-            "%)";
-
-          //ダウンロードエラー数がある場合はエラー発生の●を表示
-          if (NicoDownloader.DownloadFaultNumCheck() != 0) {
-            text_dl += "●";
-          }
-
-          //ボタンのテキストを書き換え
-          NicoDownloader.ButtonTextWrite(text_dl);
-
-          DebugPrint("180: " + core.FS.stat(filename));
-
-          //最後のファイルの場合はresolve
-          resolve(filename);
-        }
-      ).catch(error => {
-        console.error(`ダウンロードエラー: ${NicoDownloader.TSURLs[i]}`, error);
-        reject(error);
-      });
+  const inputFiles = new Set([
+    ...NicoDownloader.TSFilenames,
+    ...m3u8s.slice(m3u8s.length / 2),
+  ]);
+  try {
+    core.setLogger(({ message }) => {
+      const output = String(message);
+      DebugPrint(`FFMPEG: ${output}`);
+      parseFFmpegProgress(output, NicoDownloader);
     });
 
-    promises.push(promise);
+    //URLsを片っ端から処理
+    //落としてファイルシステムにいれていく
+    let promises = [];
+    const BATCH_SIZE = 10; // 同時ダウンロード数を10に設定
 
-    // BATCH_SIZE個毎、または最後の要素でバッチ処理を実行
-    if (promises.length >= BATCH_SIZE || i === NicoDownloader.TSURLs.length - 1) {
-      try {
-        // 失敗した1件だけで先へ戻らず、同じバッチの書き込み完了も待つ。
-        const results = await Promise.allSettled(promises);
-        const failed = results.find((result) => result.status === "rejected");
-        if (failed) throw failed.reason;
-        promises = []; // バッチが完了したらpromises配列をクリア
-        
-        // ガベージコレクションを強制実行
-        if (window.gc) {
-          window.gc();
+    for (let i = 0; i < NicoDownloader.TSURLs.length; i++) {
+      const promise = new Promise((resolve, reject) => {
+        DownloadUint8Array(NicoDownloader.TSURLs[i], NicoDownloader).then(
+          (byte) => {
+            let filenumber = i + 1;
+
+            let filename = NicoDownloader.TSFilenames[i];
+            core.FS.writeFile(filename, byte, { canOwn: true });
+            DebugPrint("FSwrite:" + filename);
+
+            // バッファはMEMFSが保持するため、取得側の参照はここで手放す
+            byte = null;
+
+            //ダウンロードパーセンテージを計算
+            const downpercentage =
+              (100 * filenumber) / NicoDownloader.TSURLs.length;
+            if (downpercentage > NicoDownloader.DownloadPercentageGet()) {
+              NicoDownloader.DownloadPercentageSet(downpercentage);
+            }
+
+            //ダウンロード中のテキストを書き換え
+            let text_dl =
+              NicoDownloader.LangText("ダウンロード中") +
+              "…… (" +
+              NicoDownloader.DownloadPercentageGet().toFixed(1) +
+              "%)";
+
+            //ダウンロードエラー数がある場合はエラー発生の●を表示
+            if (NicoDownloader.DownloadFaultNumCheck() != 0) {
+              text_dl += "●";
+            }
+
+            //ボタンのテキストを書き換え
+            NicoDownloader.ButtonTextWrite(text_dl);
+
+            DebugPrint("180: " + core.FS.stat(filename));
+
+            //最後のファイルの場合はresolve
+            resolve(filename);
+          }
+        ).catch(error => {
+          console.error(`ダウンロードエラー: ${NicoDownloader.TSURLs[i]}`, error);
+          reject(error);
+        });
+      });
+
+      promises.push(promise);
+
+      // BATCH_SIZE個毎、または最後の要素でバッチ処理を実行
+      if (promises.length >= BATCH_SIZE || i === NicoDownloader.TSURLs.length - 1) {
+        try {
+          // 失敗した1件だけで先へ戻らず、同じバッチの書き込み完了も待つ。
+          const results = await Promise.allSettled(promises);
+          const failed = results.find((result) => result.status === "rejected");
+          if (failed) throw failed.reason;
+          promises = []; // バッチが完了したらpromises配列をクリア
+
+          // ガベージコレクションを強制実行
+          if (window.gc) {
+            window.gc();
+          }
+
+          // 少し待機してメモリを安定させる
+          await new Promise(resolve => setTimeout(resolve, 100));
+        } catch (error) {
+          console.error("バッチダウンロードエラー:", error);
+          throw error;
         }
-        
-        // 少し待機してメモリを安定させる
-        await new Promise(resolve => setTimeout(resolve, 100));
-      } catch (error) {
-        console.error("バッチダウンロードエラー:", error);
-        throw error;
       }
     }
+
+    //Transcodeする
+    // 全てのダウンロードが完了後に変換処理を開始
+    //間違ってURLを読みに行くのでm3u8を3つ書き換える
+    //m3u8末尾の3個
+    const m3u8s_num = m3u8s.length / 2;
+    for (let i = 0; i < m3u8s_num; i++) {
+      DebugPrint(
+        m3u8s[m3u8s_num + i] + " -> " + new TextEncoder().encode(m3u8s[i])
+      );
+      core.FS.writeFile(
+        m3u8s[m3u8s_num + i],
+        new TextEncoder().encode(m3u8s[i]),
+        { canOwn: true }
+      );
+    }
+
+    const m3u8name = m3u8s[m3u8s.length - 1];
+    NicoDownloader.ButtonTextWrite("結合処理中");
+
+    await Transcode(core, m3u8name, NicoDownloader, Nicovideo);
+    NicoDownloader.ButtonTextWrite("変換終了");
+    // 出力をBlobへ取り込む前に、変換済みの入力全体を解放する。
+    RemoveFFmpegFiles(core, inputFiles);
+    return PrepareConvertedDownload(core, NicoDownloader, Nicovideo);
+  } finally {
+    // バッチの全件完了を待ってから到達するので、解放後に書き込みは走らない。
+    RemoveFFmpegFiles(core, [...inputFiles, NicoDownloader.FSOutputFileNameGet()]);
+    core.setLogger(() => {});
   }
-
-  //Transcodeする
-  // 全てのダウンロードが完了後に変換処理を開始
-  //間違ってURLを読みに行くのでm3u8を3つ書き換える
-  //m3u8末尾の3個
-  const m3u8s_num = m3u8s.length / 2;
-  for (let i = 0; i < m3u8s_num; i++) {
-    DebugPrint(
-      m3u8s[m3u8s_num + i] + " -> " + new TextEncoder().encode(m3u8s[i])
-    );
-    core.FS.writeFile(
-      m3u8s[m3u8s_num + i],
-      new TextEncoder().encode(m3u8s[i])
-    );
-  }
-
-  const m3u8name = m3u8s[m3u8s.length - 1];
-  NicoDownloader.ButtonTextWrite("結合処理中");
-
-  await Transcode(core, m3u8name, NicoDownloader, Nicovideo);
-  NicoDownloader.ButtonTextWrite("変換終了");
-  return PrepareConvertedDownload(core, NicoDownloader, Nicovideo);
 }
 
 ////////////////////////////////////////////////////////////////////////
@@ -287,15 +316,9 @@ async function Downloadblob(url, NicoDownloader) {
 ////////////////////////////////////////////////////////////////////////
 async function DownloadUint8Array(url, NicoDownloader) {
   try {
-    let blob = await Downloadblob(url, NicoDownloader);
-    let arrayBuffer = await blob.arrayBuffer();
-    let byte = new Uint8Array(arrayBuffer);
-    
-    // メモリ解放
-    blob = null;
-    arrayBuffer = null;
-    
-    return byte;
+    // Response -> Blob -> ArrayBufferの中間Blobを作らず、取得したバッファを渡す。
+    const response = await fetch_retry(url, NicoDownloader, { credentials: "include" }, 100);
+    return new Uint8Array(await response.arrayBuffer());
   } catch (error) {
     console.error(`Uint8Array取得エラー: ${url}`, error);
     throw error;

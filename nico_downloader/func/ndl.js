@@ -392,6 +392,11 @@ class NicoDownloaderClass {
     ButtonTextWrite(text) {
         const button = document.getElementById(VideoData.Video_DLlink.a)?.querySelector("button");
         const label = this.LangText(text);
+        if (button && text !== "確認中") {
+            delete button.dataset.ndlStartPending;
+            clearTimeout(button._ndlStartTimer);
+            delete button._ndlStartTimer;
+        }
         const busy = /処理中|処理開始|確認中|ダウンロード中|変換中|変換終了|まもなく保存完了|Processing|Downloading|Converting|Conversion finished|Saved soon/.test(label);
         if (button && IsShortVideoPage()) {
             this.ShortButtonStatus(button, label, busy);
@@ -694,6 +699,9 @@ class NicoDownloaderClass {
     */
     ////////////////////////////////////////////////////////////////////////
     SaveButtonMake(video_name) {
+        // 定期確認で、クリック直後の「確認中」を通常ボタンへ戻さない。
+        const current = document.getElementById(VideoData.Video_DLlink.a)?.querySelector("button");
+        if (current?.dataset.ndlStartPending || this.VideoDownloadingCheck()) return;
         const innerHTML = this.SaveButtonInnerHTMLMake(video_name);
         this.ButtonInnerHTMLWrite(innerHTML);
         const wrapper = document.getElementById(VideoData.Video_DLlink.p);
@@ -704,7 +712,31 @@ class NicoDownloaderClass {
             button.disabled = !ready;
             if (this.Savemode != "0" && capture) {
                 button.addEventListener("click", (event) => {
-                    capture.claim(event).catch((error) => console.error("m3u8選択に失敗しました:", error));
+                    if (button.dataset.ndlStartPending || this.VideoDownloadingCheck() || button.dataset.ndlStatus === "completed") {
+                        event.preventDefault();
+                        event.stopImmediatePropagation();
+                        return;
+                    }
+                    const token = String(performance.now());
+                    const videoId = wrapper?.dataset.ndlVideoId;
+                    button.dataset.ndlStartPending = token;
+                    const fail = (error) => {
+                        if (button.dataset.ndlStartPending !== token || !button.isConnected) return;
+                        if (document.getElementById(VideoData.Video_DLlink.a)?.querySelector("button") !== button) return;
+                        if (wrapper?.dataset.ndlVideoId !== videoId || capture.closed || capture.syncRoute() !== videoId) return;
+                        if (capture.requested?.route === videoId) capture.requested = null;
+                        if (shortsDownloadRequested === videoId) shortsDownloadRequested = null;
+                        failedDownloadId = videoId;
+                        this.ButtonTextWrite("ダウンロードに失敗しました");
+                        console.warn("保存開始の確認に失敗しました:", error);
+                    };
+                    button._ndlStartTimer = setTimeout(() => fail(new Error("20秒以内に保存処理を開始できませんでした")), 20000);
+                    // 従来のonclickを実行してから、次の描画までに表示を切り替える。
+                    // 先にdisabledにすると、システムメッセージを開く操作を妨げる。
+                    queueMicrotask(() => {
+                        if (button.isConnected && button.dataset.ndlStartPending === token) this.ButtonTextWrite("確認中");
+                    });
+                    capture.claim(event).catch(fail);
                 }, { capture: true });
             }
         }
@@ -800,8 +832,16 @@ class NicoDownloaderClass {
         if (document.getElementById(VideoData.Video_DLlink.a2) != null) {
             //ダウンロードのタグがあればクリック
             const link = document.getElementById(VideoData.Video_DLlink.a2);
-            link.click();
-            link.remove();
+            const objectURL = link.href;
+            try {
+                link.click();
+            } finally {
+                link.remove();
+                // Chromeが保存要求を取り込む猶予を置き、Blobの保持を解除する。
+                if (objectURL.startsWith("blob:")) {
+                    setTimeout(() => URL.revokeObjectURL(objectURL), 60000);
+                }
+            }
             this.ButtonTextWrite(this.LangText("保存完了")); //ボタンの文字を変更
         }
     }
