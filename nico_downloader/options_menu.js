@@ -17,6 +17,11 @@ const optionDefaults = {
 let savedOptions = null;
 let optionsBusy = true;
 let savedGuideAcknowledged = "0";
+const updateNoticeStorageKey = "update_notice_seen_version";
+let currentUpdateVersion = "";
+let updateNoticeReady = false;
+let pendingUpdateNoticeVersion;
+let pendingNewloading;
 const pendingOptionChanges = new Map();
 const optionConflicts = new Set();
 const optionRepairs = new Set();
@@ -85,11 +90,57 @@ function ApplyPendingOptionChanges() {
 function ObserveOptionChanges(changes, area) {
     if (area !== "local") return;
     for (const [name, change] of Object.entries(changes)) {
+        if (name === updateNoticeStorageKey) {
+            pendingUpdateNoticeVersion = Object.prototype.hasOwnProperty.call(change, "newValue") ? String(change.newValue ?? "") : "";
+            if (updateNoticeReady && pendingUpdateNoticeVersion === currentUpdateVersion) HideUpdateNotice();
+            continue;
+        }
+        if (name === "newloading") {
+            pendingNewloading = Object.prototype.hasOwnProperty.call(change, "newValue") ? change.newValue : "0";
+            continue;
+        }
         if (!Object.prototype.hasOwnProperty.call(optionDefaults, name) && name !== "guide_acknowledged") continue;
         const fallback = name === "guide_acknowledged" ? "0" : optionDefaults[name];
         pendingOptionChanges.set(name, Object.prototype.hasOwnProperty.call(change, "newValue") ? change.newValue : fallback);
     }
     if (ApplyPendingOptionChanges()) ShowOptionsEditingStatus("別の画面で変更された設定を反映しました。");
+}
+
+function HideUpdateNotice() {
+    document.getElementById("update_notice").hidden = true;
+}
+
+function SaveUpdateNoticeVersion(version) {
+    try {
+        chrome.storage.local.set({ [updateNoticeStorageKey]: version }, () => {
+            if (chrome.runtime.lastError) console.warn("更新案内の確認状態を保存できませんでした:", chrome.runtime.lastError.message);
+        });
+    } catch (error) {
+        console.warn("更新案内の確認状態を保存できませんでした:", error);
+    }
+}
+
+function InitializeUpdateNotice(installed, seenVersion) {
+    currentUpdateVersion = String(chrome.runtime.getManifest().version);
+    updateNoticeReady = true;
+    const latestSeenVersion = pendingUpdateNoticeVersion === undefined ? String(seenVersion ?? "") : pendingUpdateNoticeVersion;
+    if (!installed) {
+        HideUpdateNotice();
+        if (latestSeenVersion !== currentUpdateVersion) SaveUpdateNoticeVersion(currentUpdateVersion);
+        return;
+    }
+    if (latestSeenVersion === currentUpdateVersion) {
+        HideUpdateNotice();
+        return;
+    }
+    document.getElementById("update_notice_title").textContent = "バージョン " + currentUpdateVersion + " の更新情報";
+    document.getElementById("update_notice").hidden = false;
+}
+
+function AcknowledgeUpdateNotice() {
+    if (!updateNoticeReady) return;
+    HideUpdateNotice();
+    SaveUpdateNoticeVersion(currentUpdateVersion);
 }
 
 function ReadOptionControl(name) {
@@ -257,6 +308,7 @@ function InitializeOptions() {
     document.getElementById("form").addEventListener("input", OptionsChanged);
     document.getElementById("form").addEventListener("change", OptionsChanged);
     document.getElementById("default_val").addEventListener("click", Default_click);
+    document.getElementById("update_notice_acknowledged").addEventListener("click", AcknowledgeUpdateNotice);
     window.addEventListener("hashchange", UpdateOptionsNavigation);
     UpdateOptionsNavigation();
     document.getElementById("version").textContent = "バージョン " + chrome.runtime.getManifest().version;
@@ -265,7 +317,7 @@ function InitializeOptions() {
         console.error("設定の読み込みに失敗しました:", error);
     };
     try {
-        chrome.storage.local.get({ ...optionDefaults, guide_acknowledged: "0" }, (values) => {
+        chrome.storage.local.get({ ...optionDefaults, guide_acknowledged: "0", newloading: "0", [updateNoticeStorageKey]: "" }, (values) => {
             if (chrome.runtime.lastError) {
                 onError(chrome.runtime.lastError.message);
                 return;
@@ -284,6 +336,8 @@ function InitializeOptions() {
             if (!OptionsAcknowledged() && location.hash && location.hash !== "#help") location.hash = "#help";
             UpdateOptionsNavigation();
             ShowOptionsEditingStatus("設定を変更したら保存してください。");
+            const newloading = pendingNewloading === undefined ? latest.newloading : pendingNewloading;
+            InitializeUpdateNotice(String(newloading ?? "0") !== "0", latest[updateNoticeStorageKey]);
         });
     } catch (error) {
         onError(error);

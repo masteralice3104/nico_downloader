@@ -74,6 +74,8 @@ const VideoData = {
 
 //引き継ぎされる変数
 let NicovideoDownloader__LoadedVideoSMID = "-1"; // 読み込んだ動画のsmID
+// 同じページ内の移動では保存済み状態を再利用する。動画本体・説明文は保持しない。
+const NicovideoDownloader__CompletedVideos = new Map();
 let NicovideoDownloader__NowDownloading = false; // ダウンロード中かどうか true:ダウンロード中 false:ダウンロードしていない
 
 
@@ -278,7 +280,7 @@ class NicoDownloaderClass {
         return (!needsTitle || (!!title && title !== videoId)) && (!needsUploader || !!uploader);
     }
 
-    PreparationButtonMake(videoId, phase = "metadata") {
+    PreparationButtonMake(videoId, phase = "metadata", retrySettings) {
         if (!videoId) return false;
         const currentWrapper = document.getElementById(VideoData.Video_DLlink.p);
         const current = document.getElementById(VideoData.Video_DLlink.a)?.querySelector("button");
@@ -305,6 +307,25 @@ class NicoDownloaderClass {
             button.style.cssText = "display:inline-flex;align-items:center;justify-content:center;flex-shrink:0;vertical-align:middle;margin:0";
         } else {
             button.style.cssText = "display:inline-flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;width:200px;height:56px;color:var(--colors-action-text-on-tertiary-azure);background-color:var(--colors-action-base);border-radius:var(--radii-m)";
+        }
+        if (phase === "settings-error" && retrySettings) {
+            // 読めなかった設定を消さずに読み直す。通常の保存操作には増やさない。
+            const pageURL = location.href;
+            button.innerHTML = "";
+            button.textContent = lang === "en" ? "Reload settings" : "設定を再読み込み";
+            button.title = lang === "en" ? "Settings could not be loaded. Retry without resetting them." : "設定を読み込めませんでした。設定を消さずに再試行します。";
+            button.setAttribute("aria-label", button.title);
+            button.setAttribute("aria-busy", "false");
+            button.disabled = false;
+            button.addEventListener("click", event => {
+                event.preventDefault();
+                event.stopImmediatePropagation();
+                if (button.disabled || location.href !== pageURL || wrapper.dataset.ndlVideoId !== videoId) return;
+                button.disabled = true;
+                button.setAttribute("aria-busy", "true");
+                wrapper.dataset.ndlInitialPending = "settings";
+                Promise.resolve().then(retrySettings).catch(error => console.warn("設定の再読み込みに失敗しました:", error));
+            });
         }
         content.replaceChildren(button);
         wrapper.dataset.ndlInitialPending = phase;
@@ -403,7 +424,7 @@ class NicoDownloaderClass {
      */
     ////////////////////////////////////////////////////////////////////////
     VideoLoadedCheck(video_sm) {
-        if (this.LoadedVideoSMID === video_sm) {
+        if (NicovideoDownloader__CompletedVideos.has(video_sm) || this.LoadedVideoSMID === video_sm) {
             return true;//すでに読み込んでいる
         }
         return false;//読み込んでいない
@@ -416,9 +437,25 @@ class NicoDownloaderClass {
      * @returns {Boolean}
     */
     ////////////////////////////////////////////////////////////////////////
-    VideoLoadedSMIDSet(video_sm) {
+    VideoLoadedSMIDSet(video_sm, filename = this.PreparedDownload?.filename) {
         this.LoadedVideoSMID = video_sm;
         NicovideoDownloader__LoadedVideoSMID = this.LoadedVideoSMID;
+        if (filename) NicovideoDownloader__CompletedVideos.set(video_sm, { filename });
+        return true;
+    }
+
+    CompletedButtonMake(videoId) {
+        const saved = NicovideoDownloader__CompletedVideos.get(videoId);
+        if (!saved || !this.ButtonFirstMake(videoId)) return false;
+        const wrapper = document.getElementById(VideoData.Video_DLlink.p);
+        const current = document.getElementById(VideoData.Video_DLlink.a)?.querySelector("button");
+        if (current?.dataset.ndlStatus === "completed" && wrapper.dataset.ndlInitialName === saved.filename) return true;
+        wrapper.dataset.ndlMetadataReady = "1";
+        wrapper.dataset.ndlInitialPending = "0";
+        wrapper.dataset.ndlInitialName = saved.filename;
+        // 保存用onclickは作らず、既存の完了アイコンとグレー表示を復元する。
+        this.ButtonInnerHTMLWrite(VideoData.DLButton.a + " type='button' disabled" + VideoData.DLButton.b + this.LangText("保存終了") + VideoData.DLButton.c);
+        this.ButtonTextWrite("保存完了");
         return true;
     }
 
@@ -436,7 +473,11 @@ class NicoDownloaderClass {
         const parent = DownloadButtonParent();
         if (!parent) return false;
         let wrapper = document.getElementById(VideoData.Video_DLlink.p);
-        if (wrapper && !parent.contains(wrapper)) {
+        if (wrapper && (!parent.contains(wrapper) || (video_sm && wrapper.dataset.ndlVideoId !== video_sm) ||
+            (wrapper.dataset.ndlPageUrl && wrapper.dataset.ndlPageUrl !== location.href))) {
+            const old = document.getElementById(VideoData.Video_DLlink.a)?.querySelector("button");
+            clearTimeout(old?._ndlStartTimer);
+            if (old) delete old.dataset.ndlStartPending;
             wrapper.remove();
             wrapper = null;
         }
@@ -450,6 +491,7 @@ class NicoDownloaderClass {
             wrapper.style.cssText = "display:flex;align-items:center;justify-content:center;align-self:center;width:100%;margin:0;padding:0;line-height:0";
         }
         if (video_sm) wrapper.dataset.ndlVideoId = video_sm;
+        wrapper.dataset.ndlPageUrl = location.href;
         if (!document.getElementById(VideoData.Video_DLlink.a)) {
             const content = document.createElement("a");
             content.id = VideoData.Video_DLlink.a;
@@ -481,6 +523,9 @@ class NicoDownloaderClass {
         const busy = /処理中|処理開始|確認中|ダウンロード中|変換中|変換終了|まもなく保存完了|Processing|Downloading|Converting|Conversion finished|Saved soon|Checking|Merging/.test(label);
         if (button && IsShortVideoPage()) {
             this.ShortButtonStatus(button, label, busy);
+            if (button.dataset.ndlStatus === "completed" && wrapper?.dataset.ndlInitialName) {
+                button.title = this.LangText("保存終了") + ": " + wrapper.dataset.ndlInitialName;
+            }
             return;
         }
         const caption = button?.querySelector("b");
@@ -491,7 +536,7 @@ class NicoDownloaderClass {
             button.setAttribute("aria-busy", String(busy && !completed));
             button.disabled = busy || completed;
             if (completed) {
-                button.title = this.LangText("保存終了");
+                button.title = this.LangText("保存終了") + (wrapper?.dataset.ndlInitialName ? ": " + wrapper.dataset.ndlInitialName : "");
                 button.setAttribute("aria-label", this.LangText("保存終了"));
                 button.style.setProperty("color", "#999");
                 button.style.setProperty("fill", "currentColor");
@@ -838,7 +883,19 @@ class NicoDownloaderClass {
         if (saveButton) {
             saveButton.disabled = !ready;
             if (this.Savemode != "0" && capture) {
+                const buttonURL = location.href;
+                const buttonVideoId = wrapper?.dataset.ndlVideoId;
                 saveButton.addEventListener("click", (event) => {
+                    // 画面切り替えと描画の隙間に古いボタンが押されても開始しない。
+                    if (location.href !== buttonURL || capture.syncRoute() !== buttonVideoId || wrapper?.dataset.ndlVideoId !== buttonVideoId) {
+                        event.preventDefault();
+                        event.stopImmediatePropagation();
+                        clearTimeout(saveButton._ndlStartTimer);
+                        delete saveButton._ndlStartTimer;
+                        delete saveButton.dataset.ndlStartPending;
+                        if (document.getElementById(VideoData.Video_DLlink.p) === wrapper && wrapper.dataset.ndlVideoId === buttonVideoId) wrapper.remove();
+                        return;
+                    }
                     if (saveButton.dataset.ndlStartPending || this.VideoDownloadingCheck() || saveButton.dataset.ndlStatus === "completed") {
                         event.preventDefault();
                         event.stopImmediatePropagation();
@@ -849,9 +906,16 @@ class NicoDownloaderClass {
                     const videoId = wrapper?.dataset.ndlVideoId;
                     saveButton.dataset.ndlStartPending = token;
                     const fail = (error) => {
-                        if (saveButton.dataset.ndlStartPending !== token || !saveButton.isConnected) return;
-                        if (document.getElementById(VideoData.Video_DLlink.a)?.querySelector("button") !== saveButton) return;
-                        if (wrapper?.dataset.ndlVideoId !== videoId || capture.closed || capture.syncRoute() !== videoId) return;
+                        if (saveButton.dataset.ndlStartPending !== token) return;
+                        delete saveButton.dataset.ndlStartPending;
+                        clearTimeout(saveButton._ndlStartTimer);
+                        delete saveButton._ndlStartTimer;
+                        if (!saveButton.isConnected || document.getElementById(VideoData.Video_DLlink.a)?.querySelector("button") !== saveButton) return;
+                        if (wrapper?.dataset.ndlVideoId !== videoId || capture.closed) return;
+                        if (location.href !== buttonURL || capture.syncRoute() !== videoId) {
+                            if (document.getElementById(VideoData.Video_DLlink.p) === wrapper) wrapper.remove();
+                            return;
+                        }
                         if (capture.requested?.route === videoId) capture.requested = null;
                         if (shortsDownloadRequested === videoId) shortsDownloadRequested = null;
                         failedDownloadId = videoId;
@@ -862,9 +926,13 @@ class NicoDownloaderClass {
                     // 従来のonclickを実行してから、次の描画までに表示を切り替える。
                     // 先にdisabledにすると、システムメッセージを開く操作を妨げる。
                     queueMicrotask(() => {
-                        if (saveButton.isConnected && saveButton.dataset.ndlStartPending === token) this.ButtonTextWrite("確認中");
+                        if (location.href === buttonURL && saveButton.isConnected && saveButton.dataset.ndlStartPending === token) this.ButtonTextWrite("確認中");
                     });
                     capture.claim(event).then(() => {
+                        if (location.href !== buttonURL || capture.syncRoute() !== videoId) {
+                            fail(new Error("保存開始前に動画ページが切り替わりました"));
+                            return;
+                        }
                         if (saveButton.isConnected && saveButton.dataset.ndlStartPending === token &&
                             typeof VideoDown === "function") VideoDown().catch(fail);
                     }).catch(fail);

@@ -22,12 +22,19 @@ const NicoSettingsDefaults = {
     save_comments_json: "0",
 };
 const NicoSettingsCache = { ...NicoSettingsDefaults };
-let NicoSettingsResolve, NicoSettingsReject;
-const NicoSettingsReady = new Promise((resolve, reject) => { NicoSettingsResolve = resolve; NicoSettingsReject = reject; });
+let NicoSettingsResolve, NicoSettingsReject, NicoSettingsReadySettled = false;
+let NicoSettingsReady = new Promise((resolve, reject) => { NicoSettingsResolve = resolve; NicoSettingsReject = reject; });
 // 初期化を待たないページでも、読み込み失敗を未処理の拒否にしない。
 NicoSettingsReady.catch(() => {});
 let NicoSettingsInitialized = false;
+let NicoSettingsRefreshFlight = null;
+let NicoSettingsAutoRetryUsed = false;
 const NicoSettingsRevisions = Object.create(null);
+function NicoSettingsResetReady() {
+    NicoSettingsReadySettled = false;
+    NicoSettingsReady = new Promise((resolve, reject) => { NicoSettingsResolve = resolve; NicoSettingsReject = reject; });
+    NicoSettingsReady.catch(() => {});
+}
 chrome.storage.onChanged.addListener((changes, area) => {
     if (area !== "local") return;
     for (const [name, change] of Object.entries(changes)) {
@@ -36,10 +43,22 @@ chrome.storage.onChanged.addListener((changes, area) => {
     }
 });
 function NicoSettingsRefresh() {
-    return new Promise((resolve, reject) => {
-        const revisions = { ...NicoSettingsRevisions };
-        chrome.storage.local.get(null, (stored) => {
-            if (chrome.runtime.lastError) { reject(new Error(chrome.runtime.lastError.message)); return; }
+    if (NicoSettingsRefreshFlight) return NicoSettingsRefreshFlight;
+    if (NicoSettingsReadySettled && !NicoSettingsInitialized) NicoSettingsResetReady();
+    const revisions = { ...NicoSettingsRevisions };
+    const flight = new Promise((resolve, reject) => {
+        const fail = (error) => {
+            if (!NicoSettingsInitialized && !NicoSettingsReadySettled) {
+                NicoSettingsReadySettled = true;
+                NicoSettingsReject(error);
+            }
+            reject(error);
+            if (!NicoSettingsInitialized && !NicoSettingsAutoRetryUsed) {
+                NicoSettingsAutoRetryUsed = true;
+                Promise.resolve().then(() => Promise.resolve()).then(() => NicoSettingsRefresh().catch(() => {}));
+            }
+        };
+        const applyStored = (stored) => {
             for (const name of Object.keys(NicoSettingsCache)) {
                 if ((NicoSettingsRevisions[name] || 0) === (revisions[name] || 0)) {
                     if (Object.prototype.hasOwnProperty.call(stored || {}, name)) NicoSettingsApply({ [name]: stored[name] });
@@ -51,15 +70,26 @@ function NicoSettingsRefresh() {
             }
             if (!NicoSettingsInitialized) {
                 NicoSettingsInitialized = true;
+                NicoSettingsReadySettled = true;
                 NicoSettingsResolve();
             }
+            if (typeof window !== "undefined" && typeof Event === "function") window.dispatchEvent(new Event("nico-downloader-settings-ready"));
             resolve(NicoSettingsSnapshot());
-        });
+        };
+        try {
+            chrome.storage.local.get(null, (stored) => {
+                if (chrome.runtime.lastError) { fail(new Error(chrome.runtime.lastError.message)); return; }
+                applyStored(stored);
+            });
+        } catch (error) {
+            fail(error instanceof Error ? error : new Error(String(error)));
+        }
     });
+    NicoSettingsRefreshFlight = flight;
+    flight.finally(() => { if (NicoSettingsRefreshFlight === flight) NicoSettingsRefreshFlight = null; }).catch(() => {});
+    return flight;
 }
-NicoSettingsRefresh().catch((error) => {
-    if (!NicoSettingsInitialized) { NicoSettingsInitialized = true; NicoSettingsReject(error); }
-});
+NicoSettingsRefresh().catch(() => {});
 function NicoSettingsSnapshot() { return { ...NicoSettingsCache }; }
 function NicoSettingsApply(values) {
     for (const [name, value] of Object.entries(values || {})) {

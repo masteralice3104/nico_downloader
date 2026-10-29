@@ -5,6 +5,7 @@ let failedDownloadId = null;
 let videoMetadataState = { url: location.href, videoId: null, promise: null, retryRequested: false, retried: false };
 function ResetVideoMetadataForURL() {
     if (videoMetadataState.url !== location.href) {
+        failedDownloadId = null;
         videoMetadataState = { url: location.href, videoId: null, promise: null, retryRequested: false, retried: false };
     }
 }
@@ -74,23 +75,48 @@ function FilenameSettingsKey(settings) {
         .map(key => settings[key]));
 }
 
+// SPAが操作欄を再利用しても、別のURLのボタンと開始待ちは持ち越さない。
+function SyncDownloadButtonRoute(videoId, parent) {
+    const wrapper = document.getElementById(VideoData.Video_DLlink.p);
+    if (wrapper && (!videoId || (parent && !parent.contains(wrapper)) ||
+        wrapper.dataset.ndlVideoId !== videoId ||
+        (wrapper.dataset.ndlPageUrl && wrapper.dataset.ndlPageUrl !== location.href))) {
+        const button = document.getElementById(VideoData.Video_DLlink.a)?.querySelector("button");
+        if (button) {
+            clearTimeout(button._ndlStartTimer);
+            delete button._ndlStartTimer;
+            delete button.dataset.ndlStartPending;
+        }
+        delete wrapper._ndlPreparedDownload;
+        wrapper.remove();
+        return null;
+    }
+    return wrapper;
+}
+
 async function VideoDownOnce() {
     const pageURL = location.href;
-    await globalThis.NicoSettings.ready();
+    // 設定が読めない間は初期値で進めず、画面の再読込操作を待つ。
+    try { await globalThis.NicoSettings.ready(); } catch (error) { return false; }
     if (pageURL !== location.href) return false;
     ResetVideoMetadataForURL();
     const NicoDownloader = new NicoDownloaderClass();
     const Nicovideo = new NicovideoClass();
+    SyncDownloadButtonRoute(domandPlaylistCapture.videoAt(location.href));
     if (!Nicovideo.CheckNicovideoWatchURL() || NicoDownloader.VideoDownloadingCheck()) return false;
 
     const videoSavePending = document.getElementById(VideoData.Video_DLlink.a2) !== null;
     NicoDownloader.DownloadLinkClick();
     if (videoSavePending) globalThis.NicoCommentJSON?.save();
     const shortId = ShortVideoId();
-    if (shortId && shortsDownloadRequested !== shortId) return false;
     Nicovideo.video_sm = Nicovideo.VideoSmGet(NicoDownloader.MatchingSMIDArray);
-    if (!Nicovideo.video_sm || failedDownloadId === Nicovideo.video_sm) return false;
-    if (NicoDownloader.VideoLoadedCheck(Nicovideo.video_sm)) return true;
+    if (!Nicovideo.video_sm) return false;
+    if (NicoDownloader.VideoLoadedCheck(Nicovideo.video_sm)) {
+        NicoDownloader.CompletedButtonMake(Nicovideo.video_sm);
+        return true;
+    }
+    if (shortId && shortsDownloadRequested !== shortId) return false;
+    if (failedDownloadId === Nicovideo.video_sm) return false;
 
     let wrapper = document.getElementById(VideoData.Video_DLlink.p);
     const button = document.getElementById(VideoData.Video_DLlink.a)?.querySelector("button");
@@ -157,7 +183,7 @@ async function VideoDownOnce() {
         const completed = await MovieDownload_domand(Nicovideo, NicoDownloader);
         if (completed) {
             globalThis.NicoCommentJSON?.prepare(Nicovideo);
-            NicoDownloader.VideoLoadedSMIDSet(Nicovideo.video_sm);
+            NicoDownloader.VideoLoadedSMIDSet(Nicovideo.video_sm, Nicovideo.video_name);
         }
         return completed;
     } catch (error) {
@@ -233,6 +259,7 @@ function FinalizeDownloadMetadata(video, downloader, settings, pageURL) {
 async function MovieDownload_domand(Nicovideo, NicoDownloader) {
     if (NicoDownloader.VideoDownloadingCheck()) return false;
     const pageURL = location.href;
+    const metadataStateAtStart = videoMetadataState;
     if (domandPlaylistCapture.videoAt(pageURL) !== Nicovideo.video_sm) return false;
     const masterURL = NicoDownloader.MasterURLGet();
     const settings = NicoDownloader.PreparedDownload?.settings || Object.freeze({ ...globalThis.NicoSettings.snapshot() });
@@ -296,7 +323,8 @@ async function MovieDownload_domand(Nicovideo, NicoDownloader) {
 
         return await DownEncoder(NicoDownloader, m3u8s, Nicovideo);
     } catch (error) {
-        failedDownloadId = Nicovideo.video_sm;
+        // 移動前の処理が遅れて失敗しても、移動先の再開を止めない。
+        if (location.href === pageURL && videoMetadataState === metadataStateAtStart) failedDownloadId = Nicovideo.video_sm;
         if (shortsDownloadRequested === Nicovideo.video_sm) shortsDownloadRequested = null;
         if (domandPlaylistCapture.requested?.route === Nicovideo.video_sm) domandPlaylistCapture.requested = null;
         const wrapper = document.getElementById(VideoData.Video_DLlink.p);
@@ -357,32 +385,39 @@ function StartInitialButtonObserver() {
     }
     initialButtonObserverStarted = true;
     let settings;
+    let settingsError = null;
     let frame = null;
     let observing = true;
 
     const refresh = () => {
+        ResetVideoMetadataForURL();
         domandPlaylistCapture.syncRoute();
         const routeId = domandPlaylistCapture.videoAt(location.href);
         if (!routeId) {
-            if (!NicovideoDownloader__NowDownloading) document.getElementById(VideoData.Video_DLlink.p)?.remove();
+            SyncDownloadButtonRoute(null);
             return;
         }
         const videoId = IsShortVideoPage() ? routeId : settings ? location.href.match(settings.video_pattern)?.[0] : routeId;
-        if (!videoId || NicovideoDownloader__NowDownloading ||
-            NicovideoDownloader__LoadedVideoSMID === videoId) return;
         const parent = DownloadButtonParent();
-        if (!parent) return;
-        let wrapper = document.getElementById(VideoData.Video_DLlink.p);
-        if (wrapper && (!parent.contains(wrapper) || wrapper.dataset.ndlVideoId !== videoId)) {
-            wrapper.remove();
-            wrapper = null;
+        let wrapper = SyncDownloadButtonRoute(videoId, parent);
+        if (!videoId || NicovideoDownloader__NowDownloading || !parent) return;
+        const downloader = settings ? new NicoDownloaderClass() : Object.create(NicoDownloaderClass.prototype);
+        if (settings && downloader.VideoLoadedCheck(videoId)) {
+            downloader.CompletedButtonMake(videoId);
+            return;
         }
         const currentButton = document.getElementById(VideoData.Video_DLlink.a)?.querySelector("button");
         if (currentButton?.dataset.ndlStartPending || currentButton?.dataset.ndlStatus === "busy" ||
             currentButton?.dataset.ndlStatus === "completed") return;
-        const downloader = settings ? new NicoDownloaderClass() : Object.create(NicoDownloaderClass.prototype);
         if (!settings) {
-            if (wrapper?.dataset.ndlInitialPending !== "settings") downloader.PreparationButtonMake(videoId, "settings");
+            const phase = settingsError ? "settings-error" : "settings";
+            if (wrapper?.dataset.ndlInitialPending !== phase) {
+                downloader.PreparationButtonMake(videoId, phase, () => {
+                    settingsError = null;
+                    schedule();
+                    return globalThis.NicoSettings.refresh().then(loadSettings, showSettingsError);
+                });
+            }
             return;
         }
         downloader.Savemode = settings.video_hlssave;
@@ -464,11 +499,17 @@ function StartInitialButtonObserver() {
         video_filename_part_1: "uploader", video_filename_part_2: "title", video_filename_part_3: "id",
     };
     let settingsRequest = 0;
+    const showSettingsError = (error) => {
+        if (settingsError !== error.message) console.warn("初期ボタンの設定取得に失敗しました:", error);
+        settingsError = error.message;
+        schedule();
+    };
     const loadSettings = () => {
         const request = ++settingsRequest;
         globalThis.NicoSettings.ready().then(() => {
             const value = globalThis.NicoSettings.snapshot();
             if (request !== settingsRequest) return;
+            settingsError = null;
             const pattern = !value.video_pattern || value.video_pattern === "0"
                 ? defaults.video_pattern : String(value.video_pattern);
             const shortPattern = !value.shorts_video_pattern || value.shorts_video_pattern === "0"
@@ -490,8 +531,9 @@ function StartInitialButtonObserver() {
             };
             domandPlaylistCapture.syncRoute();
             schedule();
-        }).catch(error => console.warn("初期ボタンの設定取得に失敗しました:", error));
+        }).catch(error => { if (request === settingsRequest) showSettingsError(error); });
     };
+    window.addEventListener("nico-downloader-settings-ready", loadSettings);
     chrome.storage.onChanged.addListener((changes, area) => {
         if (area === "local" && Object.keys(defaults).some((name) => name in changes)) loadSettings();
     });
