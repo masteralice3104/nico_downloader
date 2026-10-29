@@ -19,6 +19,19 @@ let optionsBusy = true;
 let savedGuideAcknowledged = "0";
 const pendingOptionChanges = new Map();
 const optionConflicts = new Set();
+const optionRepairs = new Set();
+
+// 画面だけで補正した旧保存値も、明示的な保存時には実データへ反映する。
+function RememberOptionRepair(name, stored, normalized) {
+    // 旧プリセットは保存側で互換対応しているため、自動修復で消さない。
+    if (name === "video_filename_mode" && ["legacy", "uploader_title_id"].includes(stored)) {
+        optionRepairs.delete(name);
+        return;
+    }
+    const primitive = typeof stored === "string" || typeof stored === "number";
+    if (stored !== undefined && (!primitive || String(stored) !== normalized)) optionRepairs.add(name);
+    else optionRepairs.delete(name);
+}
 
 function ShowOptionsEditingStatus(savedMessage = "保存済みの設定です。") {
     if (!OptionsAcknowledged()) {
@@ -34,6 +47,11 @@ function ShowOptionsEditingStatus(savedMessage = "保存済みの設定です。
         return;
     }
     const dirty = Object.keys(optionDefaults).some(name => current[name] !== savedOptions[name]);
+    if (optionRepairs.size) {
+        ShowOptionsStatus((dirty ? "変更はまだ保存されていません。" : "") +
+            "保存値と画面表示に不整合があります。「設定を保存」で表示中の値に修復できます。");
+        return;
+    }
     ShowOptionsStatus(dirty ? "変更はまだ保存されていません。" : savedMessage);
 }
 
@@ -43,14 +61,16 @@ function ApplyPendingOptionChanges() {
     for (const [name, value] of pendingOptionChanges) {
         if (name === "guide_acknowledged") {
             const control = document.getElementById(name);
-            if (String(Number(control.checked)) === savedGuideAcknowledged) control.checked = value === "1";
-            savedGuideAcknowledged = value;
+            const normalized = String(value) === "1" ? "1" : "0";
+            if (String(Number(control.checked)) === savedGuideAcknowledged) control.checked = normalized === "1";
+            savedGuideAcknowledged = normalized;
             continue;
         }
         const editing = current[name] !== savedOptions[name];
         // コントロールと同じ正規化で保存済みの基準値を更新する。
         WriteOptionControl(name, value);
         const normalized = ReadOptionControl(name);
+        RememberOptionRepair(name, value, normalized);
         savedOptions[name] = normalized;
         if (editing) WriteOptionControl(name, current[name]);
         if (editing && current[name] !== normalized) optionConflicts.add(name);
@@ -67,7 +87,7 @@ function ObserveOptionChanges(changes, area) {
     for (const [name, change] of Object.entries(changes)) {
         if (!Object.prototype.hasOwnProperty.call(optionDefaults, name) && name !== "guide_acknowledged") continue;
         const fallback = name === "guide_acknowledged" ? "0" : optionDefaults[name];
-        pendingOptionChanges.set(name, String(change.newValue ?? fallback));
+        pendingOptionChanges.set(name, Object.prototype.hasOwnProperty.call(change, "newValue") ? change.newValue : fallback);
     }
     if (ApplyPendingOptionChanges()) ShowOptionsEditingStatus("別の画面で変更された設定を反映しました。");
 }
@@ -139,8 +159,9 @@ function Options_Save(event) {
     ApplyPendingOptionChanges();
     if (!OptionsAcknowledged()) { ShowOptionsEditingStatus(); return; }
     const values = ReadOptionsForm();
-    // この画面で編集したキーだけを書き込み、他画面の変更を巻き戻さない。
-    const edited = Object.fromEntries(Object.entries(values).filter(([name, value]) => value !== savedOptions[name]));
+    // 編集キーと、画面上の補正だけでは直っていない保存値だけを書き込む。
+    const edited = Object.fromEntries(Object.entries(values).filter(([name, value]) =>
+        value !== savedOptions[name] || optionRepairs.has(name)));
     const expected = { ...edited, newloading: "1", guide_acknowledged: "1" };
     for (const [name, label] of [["video_pattern", "通常動画"], ["shorts_video_pattern", "ショート"]]) {
         const pattern = document.getElementById(name);
@@ -189,6 +210,7 @@ function Options_Save(event) {
                     for (const [name, value] of Object.entries(edited)) {
                         savedOptions[name] = value;
                         optionConflicts.delete(name);
+                        optionRepairs.delete(name);
                     }
                     savedGuideAcknowledged = "1";
                     SetOptionsBusy(false);
@@ -250,15 +272,18 @@ function InitializeOptions() {
             }
             const latest = { ...values, ...Object.fromEntries(pendingOptionChanges) };
             pendingOptionChanges.clear();
-            for (const name of Object.keys(optionDefaults)) WriteOptionControl(name, latest[name]);
+            for (const name of Object.keys(optionDefaults)) {
+                WriteOptionControl(name, latest[name]);
+                RememberOptionRepair(name, latest[name], ReadOptionControl(name));
+            }
             savedOptions = ReadOptionsForm();
-            savedGuideAcknowledged = String(latest.guide_acknowledged);
+            savedGuideAcknowledged = String(latest.guide_acknowledged) === "1" ? "1" : "0";
             acknowledgement.checked = savedGuideAcknowledged === "1";
             UpdateFilenamePreview();
             SetOptionsBusy(false);
             if (!OptionsAcknowledged() && location.hash && location.hash !== "#help") location.hash = "#help";
             UpdateOptionsNavigation();
-            ShowOptionsStatus(OptionsAcknowledged() ? "設定を変更したら保存してください。" : "先に上の使い方を確認してください。");
+            ShowOptionsEditingStatus("設定を変更したら保存してください。");
         });
     } catch (error) {
         onError(error);
