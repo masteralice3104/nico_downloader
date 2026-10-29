@@ -71,19 +71,27 @@
     window.postMessage({ channel, type: 'ready' }, location.origin);
 })();
 
-// ページが受信したlazy動画情報から、必要な投稿者名・シリーズ名だけを渡す。
+// ページ自身が受信した動画情報から、投稿者名・シリーズ名と説明文のHTML全文だけを渡す。
 (() => {
     if (globalThis.chrome?.runtime?.id) return;
     const channel = 'nico-downloader-watch-metadata-v1';
     let client = '', cached = null, href = location.href, generation = 0, order = 0;
+    // 先読み応答も要求・応答の動画IDで結び付け、移動後は同じIDの全文だけを再利用する。
+    const descriptions = new Map();
     const route = () => location.pathname.match(/^\/watch\/(sm[0-9]+)\/?$/)?.[1] || '';
     const sync = () => {
-        if (href !== location.href) { href = location.href; cached = null; generation++; }
+        if (href !== location.href) { href = location.href; cached = null; generation++; publishDescription(); }
     };
     const publish = () => {
         sync();
         if (client && cached && cached.href === location.href && cached.videoId === route()) {
             window.postMessage({ channel, client, type: 'metadata', ...cached }, location.origin);
+        }
+    };
+    const publishDescription = () => {
+        const entry = descriptions.get(route());
+        if (client && entry && Date.now() - entry.receivedAt < 300000) {
+            window.postMessage({ channel, client, type: 'description', ...entry, href: location.href }, location.origin);
         }
     };
     window.addEventListener('message', event => {
@@ -92,6 +100,7 @@
             data.type !== 'subscribe' || typeof data.client !== 'string' || data.client.length > 100) return;
         client = data.client;
         publish();
+        publishDescription();
     });
     for (const name of ['popstate', 'hashchange']) window.addEventListener(name, sync);
     window.navigation?.addEventListener('currententrychange', sync);
@@ -99,19 +108,38 @@
         sync();
         try {
             const parsed = new URL(url, location.href);
-            const videoId = parsed.pathname.match(/^\/v4\/watch\/lazy\/(sm[0-9]+)\/?$/)?.[1];
-            return String(method).toUpperCase() === 'POST' && parsed.origin === 'https://nvapi.nicovideo.jp' &&
-                videoId && videoId === route() ? { videoId, href, generation, order: ++order } : null;
+            const verb = String(method).toUpperCase();
+            const lazyId = parsed.pathname.match(/^\/v4\/watch\/lazy\/(sm[0-9]+)\/?$/)?.[1];
+            if (verb === 'POST' && parsed.origin === 'https://nvapi.nicovideo.jp' && lazyId && lazyId === route()) {
+                return { videoId: lazyId, href, generation, order: ++order, kind: 'lazy' };
+            }
+            const detailId = parsed.origin === 'https://www.nicovideo.jp'
+                ? parsed.pathname.match(/^\/api\/watch\/v3(?:_guest)?\/(sm[0-9]+)\/?$/)?.[1]
+                : parsed.origin === 'https://nvapi.nicovideo.jp'
+                    ? parsed.pathname.match(/^\/v[0-9]+\/watch\/(sm[0-9]+)\/?$/)?.[1] : null;
+            return ['GET', 'POST'].includes(verb) && detailId
+                ? { videoId: detailId, order: ++order, kind: 'description' } : null;
         } catch { return null; }
     };
     const active = ctx => { sync(); return ctx && ctx.generation === generation && ctx.href === location.href && ctx.videoId === route(); };
     const textValue = value => typeof value === 'string' && value.length <= 10000 ? value : '';
     async function receive(ctx, read, status) {
-        if (!active(ctx) || status !== 200) return;
+        if ((ctx.kind !== 'description' && !active(ctx)) || status !== 200) return;
         try {
             const json = JSON.parse(await read());
-            if (!active(ctx) || json?.meta?.status !== 200 || !json.data ||
-                (cached && cached.order > ctx.order)) return;
+            if (json?.meta?.status !== 200 || !json.data) return;
+            if (ctx.kind === 'description') {
+                const data = json.data.response ?? json.data;
+                const video = [data.$watchV4?.data?.video, data.video]
+                    .find(value => value?.id === ctx.videoId && typeof value.description === 'string');
+                if (!video || (descriptions.get(ctx.videoId)?.order || 0) > ctx.order) return;
+                descriptions.delete(ctx.videoId);
+                descriptions.set(ctx.videoId, { videoId: ctx.videoId, description: video.description, order: ctx.order, receivedAt: Date.now() });
+                while (descriptions.size > 8) descriptions.delete(descriptions.keys().next().value);
+                publishDescription();
+                return;
+            }
+            if (!active(ctx) || (cached && cached.order > ctx.order)) return;
             // series.video.prev/nextは別動画なので転送しない。Cookie・本文・広告情報も転送しない。
             const owner = textValue(json.data.owner?.nickname);
             const series = textValue(json.data.series?.title);
@@ -129,7 +157,7 @@
         } catch {}
         const result = Reflect.apply(originalFetch, this, arguments);
         if (ctx) result.then(response => {
-            if (!active(ctx) || response.status !== 200) return;
+            if ((ctx.kind !== 'description' && !active(ctx)) || response.status !== 200) return;
             const copy = response.clone();
             return receive(ctx, () => copy.text(), response.status);
         }).catch(() => {});
@@ -147,7 +175,7 @@
         if (ctx) {
             const finish = () => {
                 this.removeEventListener('loadend', finish);
-                if (requests.get(this) !== request || !active(ctx)) return;
+                if (requests.get(this) !== request || (ctx.kind !== 'description' && !active(ctx))) return;
                 receive(ctx, () => this.responseType === 'json' ? JSON.stringify(this.response) : this.responseText, this.status);
             };
             this.addEventListener('loadend', finish);
@@ -271,7 +299,9 @@ nicovideo.SetAllFromVideoSm('sm9').then(() => {
 // 残さねばならない変数
 let Nicovideo______Ndl______DataLoadedSMID = '-1'; // データを取得した動画のsmid
 const metadataWarnings = new Set();
-let Nicovideo______Ndl______DataLoadedJSON = {}; // JSONデータ   
+let Nicovideo______Ndl______DataLoadedJSON = {}; // JSONデータ
+const currentDecoratedVideoId = fallback => typeof location?.pathname === "string"
+    ? location.pathname.match(/^\/watch\/(sm[0-9]+)\/?$/)?.[1] ?? "" : fallback;
 
 class NicovideoClass {
     constructor() {
@@ -285,10 +315,13 @@ class NicovideoClass {
         this.mylist_count = 0; // マイリスト数
         this.like_count = 0; // いいね数
         this.page_counts = {}; // 同じ動画IDのページ情報から補完した件数
+        this.page_counts_video_id = '';
         this.video_title = ''; // タイトル
         this.video_owner = ''; // 投稿ユーザー
         this.video_registeredAt = ''; // 登録日時
-        this.video_description = ''; // 説明文
+        this.video_description = ''; // 同一動画の詳細JSONまたは詳細DOMのHTML全文を保持する。
+        this.video_description_is_full = false;
+        this.video_description_video_id = '';
         this.video_tags = []; // タグ
         this.video_genre = ''; // ジャンル
         this.video_series = ''; // シリーズ
@@ -314,7 +347,7 @@ class NicovideoClass {
         this.video_sm = video_sm;
         // ショートは表示中のカードからタイトルを取得し、既存の保存名設定に渡す。
         if (/^ss[0-9]+$/.test(video_sm)) {
-            this.video_title = this.GetPageTitle() || video_sm;
+            this.video_title = this.GetPageTitle();
             return;
         }
 
@@ -351,6 +384,17 @@ class NicovideoClass {
                 if ((data.video?.id ?? data.client?.watchId) === video_sm) return json;
             } catch { /* 同じ動画IDと確認できる埋め込み情報だけを使う。 */ }
         }
+        const hasDecoratedPage = this.ReadDecoratedPageMetadata();
+        if (hasDecoratedPage && this.video_description_is_full && this.video_description_video_id === video_sm) {
+            const count = { ...this.page_counts };
+            const video = { id: video_sm, title: this.video_title || this.GetPageTitle(),
+                description: this.video_description, registeredAt: this.video_registeredAt, count };
+            return { meta: { status: 200 }, data: { video,
+                owner: this.video_owner ? { nickname: this.video_owner } : {},
+                genre: this.video_genre ? { label: this.video_genre } : {},
+                series: this.video_series ? { title: this.video_series } : {},
+            } };
+        }
         const lazy = globalThis.NicoWatchMetadata?.get(video_sm);
         if (lazy) return { meta: { status: 200 }, data: { video: { id: video_sm },
             owner: { nickname: lazy.owner }, series: { title: lazy.series } } };
@@ -368,6 +412,10 @@ class NicovideoClass {
     }
     //constructorの各変数をセット
     SetAll(json = this.json) {
+        if (this.page_counts_video_id !== this.video_sm) {
+            this.page_counts = {};
+            this.page_counts_video_id = this.video_sm;
+        }
         this.view_count = this.JsonToViewCount(json);
         this.comment_count = this.JsonToCommentCount(json);
         this.mylist_count = this.JsonToMylistCount(json);
@@ -375,7 +423,11 @@ class NicovideoClass {
         this.video_title = this.JsonToTitle(json);
         this.video_owner = this.JsonToUser(json);
         this.video_registeredAt = this.JsonToRegisteredAt(json);
-        this.video_description = this.JsonToDescription(json);
+        if (this.video_description_video_id !== this.video_sm) {
+            this.video_description = '';
+            this.video_description_is_full = false;
+        }
+        this.SetFullDescription(this.ReadFullDescription(json));
         this.video_tags = this.JsonToTags(json);
         this.video_genre = this.JsonToGenre(json);
         this.video_series = this.JsonToSeries(json);
@@ -441,7 +493,7 @@ class NicovideoClass {
     GetPageTitle() {
         // ショートでは先読みカードや前の動画のmeta情報を参照しない。
         const candidates = IsShortVideoPage() ? [this.GetShortVideoTitle(), document.title] : [
-            document.querySelector("h1")?.textContent,
+            document.querySelector("main h1.fs_xl.fw_bold")?.textContent,
             document.querySelector('meta[property="og:title"]')?.getAttribute("content"),
             document.querySelector('meta[name="twitter:title"]')?.getAttribute("content"),
             document.title,
@@ -493,9 +545,101 @@ class NicovideoClass {
         return [data.owner?.nickname, data.channel?.name, data.metadata?.jsonLd?.owner?.name]
             .find(value => typeof value === "string" && value.trim()) ?? ""; // 投稿ユーザー名
     }
-    //jsonより説明文を取得
+    // 詳細JSONの説明文はHTML・改行・URLを加工せず扱う。
     JsonToDescription(json = this.json) {
-        return this.GetVideo(json).description ?? ""; // 説明文
+        const value = this.GetVideo(json).description;
+        return typeof value === "string" ? value : "";
+    }
+
+    ReadFullDescription(json = this.json) {
+        if (Number(json?.meta?.status) >= 400) return null;
+        const data = json?.data?.response ?? json?.data ?? {};
+        // 別IDのオブジェクト同士をマージして本文を誤って引き継がない。
+        const video = [data.$watchV4?.data?.video, data.video]
+            .find(value => value?.id === this.video_sm && typeof value.description === "string");
+        return video ? video.description : null;
+    }
+
+    // DOMで描画された同一動画の詳細root内からだけ全文と空欄項目を補完する。
+    ReadDecoratedPageMetadata() {
+        const videoId = this.video_sm;
+        if (!/^sm[0-9]+$/.test(videoId) || currentDecoratedVideoId(videoId) !== videoId) return false;
+        if (this.page_counts_video_id && this.page_counts_video_id !== videoId) this.page_counts = {};
+        this.page_counts_video_id = videoId;
+        const directChild = (parent, tagName) => Array.from(parent?.children ?? [])
+            .find(element => element.tagName?.toUpperCase() === tagName);
+        let description;
+        const root = [...document.querySelectorAll("[data-decoration-video-id]")].find(element => {
+            if (element.getAttribute("data-decoration-video-id") !== videoId) return false;
+            const pressable = Array.from(element.children ?? []).find(child =>
+                child.tagName?.toUpperCase() === "DIV" && child.classList?.contains("Pressable"));
+            const body = directChild(pressable, "P");
+            if (!body) return false;
+            description = body;
+            return true;
+        });
+        if (!root) return false;
+        const hasFullDescriptionForVideo = this.video_description_is_full && this.video_description_video_id === videoId;
+        if (description && typeof description.innerHTML === "string" && (!hasFullDescriptionForVideo || this.video_description === "")) {
+            if (this.SetFullDescription(description.innerHTML, videoId)) {
+                console.info("[nico downloader] 詳細DOMから説明文全文を取得:", videoId, description.innerHTML.length + "文字");
+            }
+        }
+        const fillText = (key, value) => {
+            const text = typeof value === "string" ? value.trim() : "";
+            if ((this[key] == null || this[key] === "") && text) this[key] = text;
+        };
+        const dl = directChild(root, "DL");
+        const rows = Array.from(dl?.children ?? []);
+        const rowFor = label => rows.find(row => directChild(row, "DT")?.textContent?.trim() === label);
+        const valueFor = label => directChild(rowFor(label), "DD");
+        fillText("video_title", this.GetPageTitle());
+        const dateTime = directChild(valueFor("投稿日時"), "TIME")?.getAttribute("datetime");
+        fillText("video_registeredAt", dateTime);
+        const countFields = {
+            "再生": ["view", "view_count"],
+            "コメント": ["comment", "comment_count"],
+            "いいね！": ["like", "like_count"],
+            "マイリスト": ["mylist", "mylist_count"],
+        };
+        const rawCounts = this.GetWatchData(this.json).video?.count ?? {};
+        for (const [label, [sourceKey, field]] of Object.entries(countFields)) {
+            const rawValue = rawCounts[sourceKey];
+            if (rawValue != null && rawValue !== "") continue;
+            if (this.page_counts[sourceKey] != null && this.page_counts[sourceKey] !== "") continue;
+            const displayed = directChild(valueFor(label), "SPAN")?.textContent?.trim() ?? "";
+            const digits = displayed.replace(/,/g, "");
+            if (!/^\d+$/.test(digits)) continue;
+            const count = Number(digits);
+            if (!Number.isSafeInteger(count) || count < 0) continue;
+            this.page_counts[sourceKey] = count;
+            if (this[field] == null || this[field] === "" || this[field] === 0) this[field] = count;
+        }
+        const links = Array.from(root.querySelectorAll("a[href]")).filter(link => !description?.contains?.(link));
+        const linkText = predicate => links.find(link => predicate(link.getAttribute("href") ?? "") && link.textContent?.trim())?.textContent;
+        fillText("video_genre", linkText(href => href.startsWith("/video_top/genre/")));
+        fillText("video_series", linkText(href => /^\/series\/[^/]+\/?$/.test(href)));
+        fillText("video_owner", linkText(href => /^\/user\/\d+\/?$/.test(href)));
+        return true;
+    }
+
+    SetFullDescription(value, videoId = this.video_sm) {
+        if (typeof value !== "string" || videoId !== this.video_sm) return false;
+        // 同じ動画の非空の全文は、後から届く値で置き換えない。
+        if (this.video_description_is_full && this.video_description_video_id === videoId && this.video_description !== "") return true;
+        this.video_description = value;
+        this.video_description_is_full = true;
+        this.video_description_video_id = videoId;
+        return true;
+    }
+
+    // 保存時も追加通信はしない。ページが受信済みの全文だけを補完する。
+    EnsureFullDescription() {
+        if (!/^sm[0-9]+$/.test(this.video_sm)) return false;
+        this.CompletePageMetadata();
+        const complete = this.video_description_is_full && this.video_description_video_id === this.video_sm;
+        if (!complete) console.warn('[nico downloader] 説明文の全文を取得できていません（保存の準備を待ちます）:', this.video_sm);
+        return complete;
     }
 
     //jsonよりタグを取得
@@ -518,8 +662,11 @@ class NicovideoClass {
     // 追加通信はせず、同じ動画IDの埋め込み情報から欠けた項目だけ補う。
     CompletePageMetadata() {
         if (/^ss[0-9]+$/.test(this.video_sm)) return;
+        this.SetFullDescription(this.ReadFullDescription());
+        this.ReadDecoratedPageMetadata();
+        this.SetFullDescription(globalThis.NicoWatchMetadata?.getDescription?.(this.video_sm));
         const getters = { video_title: "JsonToTitle", video_owner: "JsonToUser", video_registeredAt: "JsonToRegisteredAt",
-            video_description: "JsonToDescription", video_tags: "JsonToTags", video_genre: "JsonToGenre", video_series: "JsonToSeries" };
+            video_tags: "JsonToTags", video_genre: "JsonToGenre", video_series: "JsonToSeries" };
         const empty = value => value == null || value === "" || (Array.isArray(value) && !value.length);
         const apply = values => {
             for (const [key, value] of Object.entries(values)) {
@@ -538,6 +685,7 @@ class NicovideoClass {
                     const value = this.GetVideo(json).count[key];
                     if (this.GetVideo().count[key] == null && value != null && value !== "") this.page_counts[key] = value;
                 }
+                this.SetFullDescription(this.ReadFullDescription(json));
                 apply(Object.fromEntries(Object.entries(getters).map(([key, getter]) => [key, this[getter](json)])));
             } catch { /* 未解析のページデータは実行せず無視する。 */ }
         }
@@ -559,12 +707,12 @@ class NicovideoClass {
                     if (!matches) continue;
                     const author = Array.isArray(value.author) ? value.author[0] : value.author;
                     const tags = Array.isArray(value.keywords) ? value.keywords : typeof value.keywords === "string" ? value.keywords.split(",").map(tag => tag.trim()).filter(Boolean) : [];
-                    apply({ video_title: value.name, video_owner: author?.name, video_description: value.description,
+                    apply({ video_title: value.name, video_owner: author?.name,
                         video_registeredAt: value.uploadDate ?? value.datePublished, video_tags: tags });
                 }
             } catch { /* 形式や動画IDを確認できない情報は使用しない。 */ }
         }
-        const missing = Object.keys(getters).filter(key => empty(this[key]));
+        const missing = [...Object.keys(getters), "video_description"].filter(key => empty(this[key]));
         const warning = this.video_sm + ":" + missing.join(",");
         if (missing.length && !metadataWarnings.has(warning)) {
             if (metadataWarnings.size >= 8) metadataWarnings.delete(metadataWarnings.values().next().value);

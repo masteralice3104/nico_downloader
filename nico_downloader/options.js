@@ -317,7 +317,7 @@ function BuildVideoFilename(parts, video, extension) {
 (() => {
     if (location.origin !== 'https://www.nicovideo.jp' || !globalThis.chrome?.runtime?.id) return;
     const channel = 'nico-downloader-watch-metadata-v1', client = crypto.randomUUID();
-    let cached = null;
+    let cached = null, description = null;
     const subscribe = () => window.postMessage({ channel, client, type: 'subscribe' }, location.origin);
     const route = () => location.pathname.match(/^\/watch\/(sm[0-9]+)\/?$/)?.[1] || '';
     const validText = value => typeof value === 'string' && value.length <= 10000;
@@ -325,15 +325,26 @@ function BuildVideoFilename(parts, video, extension) {
         const data = event.data;
         if (event.source !== window || event.origin !== location.origin || data?.channel !== channel) return;
         if (data.type === 'ready') { subscribe(); return; }
+        if (data.type === 'description') {
+            if (data.client !== client || data.href !== location.href || !route() || data.videoId !== route() ||
+                typeof data.description !== 'string' || !Number.isSafeInteger(data.order) || data.order < 1) return;
+            if (description?.href === data.href && description.order > data.order) return;
+            description = { videoId: data.videoId, href: data.href, order: data.order, text: data.description };
+            console.info('[nico downloader] ページの説明文全文取得成功:', data.videoId, data.description.length + '文字');
+            window.dispatchEvent?.(new Event('nico-downloader-metadata-ready'));
+            return;
+        }
         if (data.type !== 'metadata' || data.client !== client || data.href !== location.href ||
             !route() || data.videoId !== route() || !validText(data.owner) || !validText(data.series) ||
             !Number.isSafeInteger(data.order) || data.order < 1) return;
         if (cached?.href === data.href && cached.order > data.order) return;
         cached = { videoId: data.videoId, href: data.href, order: data.order, owner: data.owner, series: data.series };
         console.info('[nico downloader] ページの動画情報取得成功（lazy）:', data.videoId);
+        window.dispatchEvent?.(new Event('nico-downloader-metadata-ready'));
     });
     const reset = () => {
         if (cached && cached.href !== location.href) cached = null;
+        if (description && description.href !== location.href) description = null;
     };
     window.addEventListener('popstate', reset);
     window.addEventListener('hashchange', reset);
@@ -343,6 +354,11 @@ function BuildVideoFilename(parts, video, extension) {
             reset();
             return cached?.href === location.href && cached.videoId === videoId && route() === videoId
                 ? { owner: cached.owner, series: cached.series } : null;
+        },
+        getDescription(videoId) {
+            reset();
+            return description?.href === location.href && description.videoId === videoId && route() === videoId
+                ? description.text : null;
         },
     };
     subscribe();
